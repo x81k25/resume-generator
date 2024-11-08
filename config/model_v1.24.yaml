@@ -1,0 +1,16 @@
+# chat complete temperature for resume generation
+resume_gen_temp: 0.3
+# chat completion temperature for cover letter generation
+cover_letter_gen_temp: 1.0
+# number of responsibilities to use per professional experience, starting with the most recent
+responsibility_count:
+  - 5
+  - 4
+  - 3
+# statement to inform the LLM how outputs should be formatted when generating responses
+form_clause: | 
+  Output only the required content, no extra text.
+  Output should be in this format: 
+    Use valid JSON with double quotes. 
+    Output should be a 1 primitive JSON array with no keyed values.
+    Each element in the JSON array should be 1 complete sentence. 

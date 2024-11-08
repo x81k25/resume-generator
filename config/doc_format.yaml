@@ -1,0 +1,38 @@
+# normal text  formatting
+normal:
+  font_name: 'Arial'
+  font_size: 10
+  line_spacing: 1.1
+  font_color:
+    - 0
+    - 0
+    - 0
+
+# header 1 formatting
+h1:
+  font_name: 'Arial'
+  font_size: 12
+  line_spacing: 1.1
+  font_color:
+    - 23
+    - 37
+    - 55
+
+# cover letter font
+cover_letter:
+  font_name: 'Arial'
+  font_size: 10
+  line_spacing: 1.1
+  font_color:
+    - 0
+    - 0
+    - 0
+
+# if True, the end_date for the most recent job will be set to the current date
+currently_employed: True
+
+# resume specific formatting
+use_image_header: False # if Ture, png header will be used
+
+# cover letter specific formatting
+cover_letter_user_image_header: True # if Ture, png header will be used

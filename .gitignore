@@ -1,0 +1,26 @@
+# environment variables
+.env
+
+# virtual environment
+venv
+
+# pycharm config/data folders
+.ipynb_checkpoints
+.idea
+__pycache__
+
+# data files/dirs that will be specific for each instance
+.bak
+data/assets/resume-header.png
+data/input/cover_letter_content/*
+!data/input/cover_letter_content/.gitkeep
+data/input/resume/resume_input.json
+data/output/*
+!data/output/.gitkeep
+
+# ignore local notebook files
+notebooks/*
+
+# scripts that will be used for local testing
+tests/test.py
+doc.txt

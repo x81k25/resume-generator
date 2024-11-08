@@ -1,0 +1,21 @@
+{
+    "company_name": "Quora",
+    "role_title": "Data Scientist",
+    "name_param": "data-scientist-quora",
+    "role_description": "\nWho you are\nAbility to be available for meetings and impromptu communication during Quora's \u201ccoordination hours\" (Mon-Fri: 9am-3pm Pacific Time)3+ years work experience in an analytical or quantitative role as a Data Scientist or similar title\nExtensive experience generating insights using statistical techniques (e.g. regression, hypothesis testing)Demonstrated ability to clearly explain data results to cross-functional teams\nExperience using a procedural programming language (e.g. Python, R) to manipulate, clean, and analyze data\nAbility to exercise judgment and combine quantitative skills with intuition and common sense\nExperience evangelizing best practices and process improvements on your team\nDesirable\nExperience working with large data sets and distributed computing tools (e.g. Redshift, Presto)Experience pushing code and navigating a complex codebase\nActive Quora and/or Poe user with curiosity about the product\n\nWhat the job involves\nAs a member of our team, you'll work closely with product managers, product designers, and engineers to devise appropriate measurements and metrics, design randomized controlled experiments, build visualizations, and tackle hard, open-ended problems that uncover usage patterns and opportunities for the company\nQuora has a wide range of rich data, giving you ample room for exploration and creativity\nExamples of some projects our data scientists have worked on include modeling our long-term growth, improving the relevance and personalization of the homepage feed, and exploratory analysis of factors driving question-asking behavior\nAs a data scientist on monetization you will work with our ads team to make sure Quora efficiently delivers high-quality ads to the right people at the right time\nYou will also work with the sales team to identify growth opportunities and demonstrate effectiveness of campaigns on Quora\nExtract actionable insights from broad, open-ended questions\nDesign and evaluate experiments to measure the impact of product changes\nAnalyze data from across the product to uncover the root causes of metric movements\nCommunicate results to cross-functional stakeholders to inform product decisions\nDevelop tools to scale and automate analyses, improving productivity across the company\nImprove the work of other data scientists through mentorship and by bringing industry best practices to the team",
+    "key_skills": [
+        "Python",
+        "R",
+        "Redshift"
+    ],
+    "company_sectors": [
+        "B2C",
+        "Education",
+        "Internet of Things",
+        "Learning",
+        "Social",
+        "Machine Learning",
+        "Product Management",
+        "Data Integration"
+    ]
+}
