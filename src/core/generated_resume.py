@@ -4,6 +4,7 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import json
 from openai import OpenAI
+import pickle
 import time
 # internal imports
 from src.utils.single_content_completion import complete_single_content
@@ -166,9 +167,9 @@ class GeneratedResume:
         for i in range(len(self.professional_experience_input)):
             response = complete_single_content(
                 client,
-                "From this list: " + str(self.professional_experience_input[i]['responsibilities']) +
-                " select the JSON elements that correspond to the following skills: " +
-                self.gen_tech_skills + self.gen_tech_tools +
+                "From this list: " + str(self.professional_experience_input[i]['responsibilities']) + " " +
+                "select the JSON elements that correspond to the following skills: " +
+                self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills + " . " +
                 self.model_config['form_clause'],
                 self.model_config['resume_gen_temp']
             )
@@ -177,15 +178,14 @@ class GeneratedResume:
 
             self.professional_experience_liminal[i]['all_relevant_responsibilities'] = response
 
-
-        # refine results to only the most applicable experiences
+        # select the most relevant responses
         for i in range(len(self.professional_experience_input)):
              response = complete_single_content(
                  client,
-                 "Combine elements in this list: " + self._de_parse_response(self.professional_experience_liminal[i]['all_relevant_responsibilities']) +
-                 " into " + str(self.model_config['responsibility_count'][i]) +
-                 " sentences that cover as many of these skills as possible: "
-                 + self.gen_tech_skills + self.gen_tech_tools + self.model_config['form_clause'],
+                 "Select the most relevant " + str(self.model_config['responsibility_count'][i]) + " " +
+                 "responsibilities from this list: " + self._de_parse_response(self.professional_experience_liminal[i]['all_relevant_responsibilities']) + " . " 
+                 "That cover as many of these areas as possible: " + self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills + " . " +
+                 self.model_config['form_clause'],
                  self.model_config['resume_gen_temp']
              )
 
@@ -193,24 +193,41 @@ class GeneratedResume:
 
              self.professional_experience_liminal[i]['most_relevant_responsibilities'] = response
 
+        # increase human readablity of responses
+        for i in range(len(self.professional_experience_input)):
+             response = complete_single_content(
+                 client,
+                 "Increase the readability of the elements in this list: " + self._de_parse_response(self.professional_experience_liminal[i]['most_relevant_responsibilities']) + " . " +
+                 "Every statement should be clear and concise. " +
+                 "Remove unnecessary punctuation. " +
+                 "Ensure that all skills included here are preserved in the final output: " + self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills + " . " +
+                 "Additional extraneous skills may be removed if element is overly long. " +
+                 self.model_config['form_clause'],
+                 self.model_config['resume_gen_temp']
+             )
+
+             response = self._parse_response(response)
+
+             self.professional_experience_liminal[i]['formatted_responsibilities'] = response
+
         # assign role titles for all employers
         for i in range(len(self.professional_experience_liminal)):
             if self.role_title_overrides[i] is not None:
-                self.professional_experience_liminal[i]['role'] = self.role_title_overrides[i]
+                self.professional_experience_liminal[i]['role_title'] = self.role_title_overrides[i]
             else:
-                role = self._generate_role_title(
+                role_title = self._generate_role_title(
                     client,
-                    json.dumps(self.professional_experience_liminal[i]['most_relevant_responsibilities'])
+                    json.dumps(self.professional_experience_liminal[i]['formatted_responsibilities'])
                 )
-                self.professional_experience_liminal[i]['role'] = role
+                self.professional_experience_liminal[i]['role_title'] = role_title
 
-        # display role results to user
+        # display role_title results to user
         string_output = "Generated role titles: \n"
 
         for i in range(len(self.professional_experience_liminal)):
              string_output += (
                  self.professional_experience_liminal[i]['employer'] + ": " +
-                 self.professional_experience_liminal[i]['role'] + "\n"
+                 self.professional_experience_liminal[i]['role_title'] + "\n"
              )
 
         log(string_output.rstrip("\n"))
@@ -219,10 +236,10 @@ class GeneratedResume:
         for i in range(len(self.professional_experience_liminal)):
              # incorporate elements from input resume
              self.professional_experience_output.append({"employer": self.professional_experience_liminal[i]["employer"]})
-             self.professional_experience_output[i]['role'] = self.professional_experience_input[i]['role']
+             self.professional_experience_output[i]['role_title'] = self.professional_experience_liminal[i]['role_title']
              self.professional_experience_output[i]['employment_start'] = self.professional_experience_input[i]['employment_start']
              self.professional_experience_output[i]['employment_end'] = self.professional_experience_input[i]['employment_end']
-             self.professional_experience_output[i]['responsibilities'] = self.professional_experience_liminal[i]['most_relevant_responsibilities']
+             self.professional_experience_output[i]['responsibilities'] = self.professional_experience_liminal[i]['formatted_responsibilities']
 
         # inform user run was successful
         log('professional_experience output stored in GeneratedResume.professional_experience_output')
@@ -285,7 +302,7 @@ class GeneratedResume:
             resume_doc.add_picture(image_path, width=Inches(6.5))
         elif not self.doc_format['use_image_header']:
             resume_doc.add_heading(
-                self.personal_info["first_name"].upper() + self.personal_info["last_name"].upper(),
+                self.personal_info["first_name"].upper() + " " + self.personal_info["last_name"].upper(),
                 level=1
             )
             resume_doc.add_paragraph(
@@ -309,7 +326,7 @@ class GeneratedResume:
             table.columns[0].width = Inches(4.5)
             table.columns[1].width = Inches(2.0)
             hdr_cells = table.rows[0].cells
-            hdr_cells[0].text = self.professional_experience_output[i]['role'] + ", " + self.professional_experience_output[i]['employer']
+            hdr_cells[0].text = self.professional_experience_output[i]['role_title'] + ", " + self.professional_experience_output[i]['employer']
             hdr_cells[1].text = self.professional_experience_output[i]['employment_start'] + "-" + self.professional_experience_output[i][
                 'employment_end']
             left_paragraph = hdr_cells[0].paragraphs[0]
@@ -320,7 +337,7 @@ class GeneratedResume:
                 for paragraph in cell.paragraphs:
                     for run in paragraph.runs:
                         run.font.bold = sub_header_bold
-                        run.font.size = Pt(sub_header_font_size)
+                        run.font.size = sub_header_font_size
                         run.font.name = 'Arial'
             for j in range(len(self.professional_experience_output[i]['responsibilities'])):
                 resume_doc.add_paragraph(self.professional_experience_output[i]['responsibilities'][j],
@@ -354,7 +371,7 @@ class GeneratedResume:
             for paragraph in cell.paragraphs:
                 for run in paragraph.runs:
                     run.font.bold = sub_header_bold
-                    run.font.size = Pt(sub_header_font_size)
+                    run.font.size = sub_header_font_size
                     run.font.name = 'Arial'
 
         ## add minor
@@ -389,7 +406,7 @@ class GeneratedResume:
             for paragraph in cell.paragraphs:
                 for run in paragraph.runs:
                     run.font.bold = sub_header_bold
-                    run.font.size = Pt(sub_header_font_size)
+                    run.font.size = sub_header_font_size
                     run.font.name = self.doc_format['normal']['font_name']
 
         resume_doc.add_paragraph("")
@@ -406,9 +423,9 @@ class GeneratedResume:
 
         # build file output path and save doc
         resume_output_path = (
+            self.env_vars['RESUME_OUTPUT_PATH'] +
             self.personal_info['first_name'].lower() + "-" +
             self.personal_info['last_name'].lower() + "-" +
-            self.env_vars['RESUME_OUTPUT_PATH'] +
             self.job_description['name_param'] +
             '-resume.docx'
         )
@@ -459,10 +476,35 @@ class GeneratedResume:
         log(string_output)
 
 # ------------------------------------------------------------------------------
-# primary functions
+# primary function
 # ------------------------------------------------------------------------------
 
     def generate_resume(self):
         self.check_qualifications()
         self.generate_resume_content()
         self.write_resume()
+
+# ------------------------------------------------------------------------------
+# other external functions that are not part of the primary pipeline
+# ------------------------------------------------------------------------------
+
+    def pickle_resume(self):
+        """
+        pickle the resume object for later use
+        """
+        log("pickling resume object")
+        resume_pickle_path = (
+            self.env_vars['RESUME_OUTPUT_PATH'] +
+            self.personal_info['first_name'].lower() + "-" +
+            self.personal_info['last_name'].lower() + "-" +
+            self.job_description['name_param'] +
+            '-resume.pkl'
+        )
+        with open(resume_pickle_path, 'wb') as output:
+            pickle.dump(self, output)
+
+        log('resume object successfully pickled to: "' + resume_pickle_path + '"')
+
+# ------------------------------------------------------------------------------
+# end of generated_resume.py
+# ------------------------------------------------------------------------------

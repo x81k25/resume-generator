@@ -7,7 +7,7 @@ import random
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from time import sleep
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from typing import Any, Dict, List, Optional
 from src.utils.logger import log
 
@@ -17,8 +17,8 @@ from src.utils.logger import log
 
 class LinkedinScraper:
     """
-    Class to scrape job description from LinkedIn
-    :param url: URL of the job description
+    Enhanced class to scrape job descriptions from LinkedIn with improved error handling
+    and anti-bot detection measures.
     """
     def __init__(self, url):
         log("initializing LinkedinScraper...")
@@ -45,51 +45,73 @@ class LinkedinScraper:
 # static helper methods
 # ------------------------------------------------------------------------------
 
-    @staticmethod
-    def clean_linkedin_job_url(full_url):
+    def clean_linkedin_job_url(self, full_url):
         """
         Clean a LinkedIn job URL by removing tracking parameters.
         Returns a minimal URL that only contains the job ID.
+
+        Args:
+            full_url (str): Full LinkedIn job URL with potential tracking parameters
+
+        Returns:
+            str: Cleaned URL containing only the base URL and job ID
         """
+        log("cleaning linkedin job url...")
+
         # Parse the URL
         parsed = urlparse(full_url)
 
-        # Extract the job ID from the path
-        job_id = parsed.path.split('/')[-1].replace('/', '')
+        # Extract the path components
+        path_parts = parsed.path.strip('/').split('/')
 
-        # If the job ID contains a question mark, remove everything after it
-        if '?' in job_id:
-            job_id = job_id.split('?')[0]
+        # Find the job ID - it should be after 'view' in the path
+        if 'view' in path_parts:
+            view_index = path_parts.index('view')
+            if view_index + 1 < len(path_parts):
+                job_id = path_parts[view_index + 1]
+                # If job ID contains any special characters, get only the numeric part
+                job_id = job_id.split('?')[
+                    0]  # Remove query parameters if present
 
-        # Construct the clean URL
-        clean_url = f"https://www.linkedin.com/jobs/view/{job_id}"
+                # Construct the clean URL
+                clean_url = f"https://www.linkedin.com/jobs/view/{job_id}"
+                log(f"cleaned linkedin job url: {clean_url}")
+                return clean_url
 
-        return clean_url
+        # If we can't find a proper job ID, try to extract it from the original path
+        for part in path_parts:
+            # Look for a numeric ID
+            if part.isdigit():
+                clean_url = f"https://www.linkedin.com/jobs/view/{part}"
+                log(f"cleaned linkedin job url: {clean_url}")
+                return clean_url
 
-
-    @staticmethod
-    def _create_session():
-        """Create a session with retry strategy"""
-        session = requests.Session()
-
-        # Configure retry strategy
-        retries = Retry(
-            total=5,  # number of retries
-            backoff_factor=1,  # wait 1, 2, 4, 8, 16 seconds between retries
-            status_forcelist=[429, 500, 502, 503, 504]
-        )
-
-        adapter = HTTPAdapter(max_retries=retries)
-        session.mount('http://', adapter)
-        session.mount('https://', adapter)
-        return session
+        raise ValueError("Could not find valid job ID in URL")
 
 # ------------------------------------------------------------------------------
 # helper methods
 # ------------------------------------------------------------------------------
 
+    def _create_session(self):
+        """Create a session with enhanced retry strategy and timeout settings"""
+        session = requests.Session()
+
+        # Configure more robust retry strategy
+        retries = Retry(
+            total=5,
+            backoff_factor=2,  # Exponential backoff: 2, 4, 8, 16, 32 seconds
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
+            respect_retry_after_header=True
+        )
+
+        adapter = HTTPAdapter(max_retries=retries, pool_maxsize=10)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        return session
+
     def _get_headers(self):
-        """Generate headers that look like a real browser"""
+        """Generate more realistic browser headers"""
         return {
             'User-Agent': self.user_agent.random,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -98,75 +120,87 @@ class LinkedinScraper:
             'DNT': '1',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
+            'TE': 'Trailers',
+            'Pragma': 'no-cache'
         }
 
-    def _fetch_webpage(self, url=None, max_retries=3):
+    def _fetch_webpage(self, url=None, max_retries=5):
         """
-        Scrape a LinkedIn job posting with proper rate limiting and error handling.
-        Updates self.html_content and self.soup attributes on success.
-
-        Args:
-            url (str, optional): LinkedIn job URL. If not provided, uses self.url
-            max_retries (int): Maximum number of retry attempts
-
-        Raises:
-            ValueError: If no URL is provided or set
-            Exception: If scraping fails after max retries
+        Enhanced webpage fetching with better error handling and anti-detection measures
         """
         log("attempting to fetch webpage...")
 
-        # Update url if provided, otherwise use instance url
         if url:
             self.url = url
 
         if not self.url:
-            raise ValueError(
-                "No URL provided. Set url in constructor or provide it to scrape()")
+            raise ValueError("No URL provided")
 
         retry_count = 0
+        base_wait_time = 5  # Base wait time in seconds
 
         while retry_count < max_retries:
             try:
-                # Add a random delay between requests (2-5 seconds)
-                sleep(random.uniform(2, 5))
+                # Add randomized delay between requests
+                sleep_time = random.uniform(base_wait_time, base_wait_time * 2)
+                sleep(sleep_time)
 
-                # Make the request with proper headers
+                # Add request timeout
                 response = self.session.get(
                     self.url,
                     headers=self._get_headers(),
-                    timeout=10
+                    timeout=30,
+                    allow_redirects=True
                 )
 
-                # Check for rate limiting
+                # Check if we're being blocked or rate limited
                 if response.status_code == 429:
-                    wait_time = int(response.headers.get('Retry-After', 60))
-                    log(f"rate limited. Waiting {wait_time} seconds...")
-                    sleep(wait_time)
+                    retry_after = int(
+                        response.headers.get('Retry-After', base_wait_time * 2))
+                    log(f"Rate limited. Waiting {retry_after} seconds...")
+                    sleep(retry_after)
                     retry_count += 1
                     continue
 
+                # Check for LinkedIn's soft blocks (redirects to login page)
+                if "authenticate" in response.url or "login" in response.url:
+                    raise Exception("LinkedIn is requiring authentication")
+
+                # Validate response content
+                if not response.text or len(response.text) < 1000:
+                    raise Exception(
+                        "Response content too short - possible block")
+
                 response.raise_for_status()
+
                 self.html_content = response.text
                 self.soup = BeautifulSoup(self.html_content, 'html.parser')
+
+                # Verify we got job content
+                if not self.soup.find('h1',
+                                      {'class': 'top-card-layout__title'}) and \
+                    not self.soup.find('h1', {'class': 'topcard__title'}):
+                    raise Exception("Job listing content not found in response")
+
                 log("...fetch successful")
-                return  # Exit method after successful fetch
+                return
 
             except requests.exceptions.RequestException as e:
-                log(f"error occurred: {str(e)}")
+                log(f"Error occurred: {str(e)}")
                 retry_count += 1
+
                 if retry_count == max_retries:
                     raise Exception(
-                        f"LinkedinScraper: Failed to scrape job after {max_retries} attempts")
-                sleep(random.uniform(5, 10))  # Wait longer between retries
+                        f"Failed to scrape job after {max_retries} attempts: {str(e)}")
 
-        # Only raise this if we somehow exit the while loop without returning or raising another exception
-        raise Exception(
-            "failed to scrape job after exhausting all retries")
+                # Exponential backoff with jitter
+                wait_time = (
+                                    base_wait_time * 2 ** retry_count) + random.uniform(
+                    1, 5)
+                sleep(wait_time)
+
+        raise Exception("Failed to scrape job after exhausting all retries")
 
     def _extract_company_name(self):
         """
