@@ -34,8 +34,10 @@ def complete_single_content(client, content, temp=1.0):
         f"API call duration:    {duration}\n" +
         f"input tokens:         {completion.usage.prompt_tokens}\n" +
         f"output tokens:        {completion.usage.completion_tokens}\n" +
-        f"prompt:               {content[:40].replace('\n', ' ')}..." + "\n" +
-        f"output:               {completion.choices[0].message.content[:40].replace('\n', ' ')}"
+        f"prompt:               {content}..." + "\n" +
+        #f"prompt:               {content[:40].replace('\n', ' ')}..." + "\n" +
+        f"output:               {completion.choices[0].message.content}"
+        #f"output:               {completion.choices[0].message.content[:40].replace('\n', ' ')}"
     )
 
     log(print_output)

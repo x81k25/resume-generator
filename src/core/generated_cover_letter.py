@@ -135,7 +135,7 @@ class GeneratedCoverLetter:
 			cover_letter_doc.add_picture(image_path, width=Inches(6.5))
 		else:
 			heading = cover_letter_doc.add_heading(
-                self.personal_info["first_name"].upper() + self.personal_info["last_name"].upper(),
+                self.personal_info["first_name"].upper() + " " + self.personal_info["last_name"].upper(),
                 level=1
             )
 			heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -166,9 +166,9 @@ class GeneratedCoverLetter:
 
 		# build cover letter output path and save
 		self.cover_letter_output_path = (
+			self.env_vars['COVER_LETTER_OUTPUT_PATH'] +
 			self.personal_info['first_name'].lower() + "-" +
 			self.personal_info['last_name'].lower() + "-" +
-			self.env_vars['COVER_LETTER_OUTPUT_PATH'] +
 			self.job_description['name_param'] +
 			"-cover-letter.docx"
 		)
@@ -189,3 +189,7 @@ class GeneratedCoverLetter:
 		log("initiating cover letter generation pipeline")
 		self.generate_cover_letter_content()
 		self.write_cover_letter()
+
+# ------------------------------------------------------------------------------
+# end of generate_cover_letter.py
+# -----------------------------------------------------------------------------_

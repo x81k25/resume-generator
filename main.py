@@ -41,6 +41,12 @@ try:
 except Exception as e:
     print(f"Error reading files: {e}")
 
+role_title_overrides =[
+    "Senior Data Scientist",
+    "Data Scientist",
+    "AI/ML Consultant"
+]
+
 log('params and data loaded')
 
 # ------------------------------------------------------------------------------
@@ -51,7 +57,8 @@ log('params and data loaded')
 #
 # execute the function with the following commands:
 # cd <project_dir>
-# venv/Scripts/activate.bat
+# venv/Scripts/activate.bat # linux
+# venv\Scripts\activate.bat # windows
 # python main.py --job-description jd.json
 # ------------------------------------------------------------------------------
 
@@ -87,6 +94,7 @@ def generate_resume_from_flat(
         doc_format=doc_format,
         job_description = job_description,
         resume_input=resume_input,
+        role_title_overrides=role_title_overrides
     )
 
     generated_resume.generate_resume()
@@ -107,8 +115,12 @@ def generate_resume_from_flat(
 #
 # execute the function with the following commands:
 # cd <project_dir>
-# venv/Scripts/activate.bat
-# python main.py --otta  https://app.welcometothejungle.com/jobs/kBciS-4C
+# venv/Scripts/activate.bat # linux
+# venv\Scripts\activate.bat # windows
+# python main.py --otta <otta_url>
+
+# example
+# python main.py --otta https://app.welcometothejungle.com/jobs/TI0RfVik
 # ------------------------------------------------------------------------------
 
 def generate_resume_via_otta(
@@ -135,6 +147,7 @@ def generate_resume_via_otta(
         doc_format=doc_format,
         job_description=otta_scraper.job_description,
         resume_input=resume_input,
+        role_title_overrides=role_title_overrides
     )
 
     generated_resume.generate_resume()
@@ -159,7 +172,11 @@ def generate_resume_via_otta(
 #
 # execute the function with the following commands:
 # cd <project_dir>
-# venv/Scripts/activate.bat
+# venv/Scripts/activate.bat # linux
+# venv\Scripts\activate.bat # windows
+# python main.py --linkedin <linkedin_url>
+#
+# example
 # python main.py --linkedin 'https://www.linkedin.com/jobs/view/pmo-project-manager-senior-at-lumen-solutions-group-inc-4020127114?position=49&pageNum=0&refId=unnAc2CazojYu2txaJX9lg%3D%3D&trackingId=IVtY7gFQHebr5VxMk0104Q%3D%3D'
 # ------------------------------------------------------------------------------
 
@@ -187,6 +204,7 @@ def generate_resume_via_linkedin(
         doc_format=doc_format,
         job_description=linkedin_scraper.job_description,
         resume_input=resume_input,
+        role_title_overrides=role_title_overrides
     )
 
     generated_resume.generate_resume()
@@ -201,6 +219,43 @@ def generate_resume_via_linkedin(
     )
 
     generated_cover_letter.generate_cover_letter()
+
+# ------------------------------------------------------------------------------
+# other functions
+# ------------------------------------------------------------------------------
+
+def generate_resume_content_only(
+    job_description_file = "jd.json"
+):
+    """
+    generates a resume and cover letter from a job description flat file that is
+        properly formatted in the template provided
+    :param job_description_file: formated flat file job description path
+    """
+    log('generating resume and cover letter from flat files')
+
+    # read in job description json from the job description path
+    full_jd_path = "./data/input/job_description/" + job_description_file
+
+    log('job description loaded successfully')
+
+    # open job description file json
+    with open(full_jd_path, "r") as json_file:
+        job_description = json.load(json_file)
+
+    # create resume object
+    generated_resume = GeneratedResume(
+        env_vars=env_vars,
+        model_config=model_config,
+        doc_format=doc_format,
+        job_description = job_description,
+        resume_input=resume_input,
+        role_title_overrides=role_title_overrides
+    )
+
+    generated_resume.generate_resume_content()
+
+    return generated_resume
 
 # ------------------------------------------------------------------------------
 # main function
