@@ -1,0 +1,21 @@
+# chat complete temperature for resume generation
+anthropic_model_version: claude-3-5-sonnet-20241022
+# chat complete temperature for resume generation
+resume_gen_temp: 0.3
+# chat completion temperature for cover letter generation
+cover_letter_gen_temp: 1.0
+# number of responsibilities to use per professional experience, starting with the most recent
+responsibility_count:
+  - 5
+  - 4
+  - 3
+# statement to inform the LLM how outputs should be formatted when generating responses
+list_form_clause: |
+  Do not return any other additional skills. 
+  Return only the list of skills with no additional context. 
+  Format should be a dashed list.
+
+json_form_clause: | 
+  Output only the json elements specified in the above instructions.
+  If input is given as an array, the output should be given as an array.
+  Add no additional context.

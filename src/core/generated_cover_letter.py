@@ -2,11 +2,45 @@
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from dotenv import dotenv_values
+import json
 import pathlib
-from openai import OpenAI
+import os
+import yaml
 # internal imports
 from src.utils.single_content_completion import complete_single_content
 from src.utils.logger import log
+
+# ------------------------------------------------------------------------------
+# load CoverLetter params and data
+# ------------------------------------------------------------------------------
+
+log('loading params and data')
+
+env_vars = dotenv_values(".env")
+
+with open('config/model_v1.25.yaml', 'r') as file:
+    model_config: object = yaml.safe_load(file)
+
+with open('config/doc_format.yaml', 'r') as file:
+    doc_format = yaml.safe_load(file)
+
+# ingest files if needed
+resume_input_path = env_vars['RESUME_INPUT_PATH']
+resume_input_path_sample = env_vars['RESUME_INPUT_PATH_SAMPLE']
+
+# logical test to determine if file is present at RESUME_INPUT_PATH
+try:
+    if os.path.exists(resume_input_path):
+        with open(resume_input_path, 'r') as file:
+            resume_input = json.load(file)
+    else:
+        with open(resume_input_path_sample, 'r') as file:
+            resume_input = json.load(file)
+except Exception as e:
+    print(f"Error reading files: {e}")
+
+log('params and data loaded')
 
 # ------------------------------------------------------------------------------
 # define primary class
@@ -15,12 +49,12 @@ from src.utils.logger import log
 class GeneratedCoverLetter:
 	def __init__(
 		self,
-		env_vars,
-		model_config,
-		doc_format,
-        job_description,
+		job_description,
 		personal_info,
-        resume
+		resume,
+		env_vars=env_vars,
+		model_config=model_config,
+		doc_format=doc_format
 	):
 		log("initializing GeneratedCoverLetter object")
 		# input parameters
@@ -54,12 +88,8 @@ class GeneratedCoverLetter:
 		else:
 			cl_content = None
 
-		# initialize OpenAI client
-		client = OpenAI()
-
 		# retrieve information about company
 		company_info = complete_single_content(
-			client,
 			"Give me a summary about this company and tell me about its " + \
 			"values: " + self.job_description['company_name']
 		)
@@ -67,7 +97,6 @@ class GeneratedCoverLetter:
 		# generate body of cover letter
 		if cl_content is not None:
 			self.cover_letter_text = complete_single_content(
-				client,
 				"An individual has this experience: " + str(self.resume) + ". " +
 				"They are applying for this job: " + self.job_description['role_description'] + ". " +
 				"at this company: " + company_info + " ." +
@@ -82,7 +111,6 @@ class GeneratedCoverLetter:
 			)
 		else:
 			self.cover_letter_text = complete_single_content(
-				client,
 				"An individual has this experience: " + str(self.resume) + ". " +
 				"They are applying for this job: " + self.job_description['role_description'] + ". " +
 				"at this company: " + company_info + " ." +

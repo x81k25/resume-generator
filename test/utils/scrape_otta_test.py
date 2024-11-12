@@ -19,7 +19,7 @@ def load_sample_html():
 		raise FileNotFoundError(f"Sample HTML file not found at {html_path}")
 
 
-# Load sample HTML once for all tests
+# Load sample HTML once for all test
 SAMPLE_HTML = load_sample_html()
 
 

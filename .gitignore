@@ -22,5 +22,6 @@ data/output/*
 notebooks/*
 
 # scripts that will be used for local testing
-tests/test.py
+test/test.py
+test/test-resume.pkl
 doc.txt
