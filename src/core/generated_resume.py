@@ -8,7 +8,9 @@ from dotenv import dotenv_values
 import json
 import os
 import pickle
+import re
 import yaml
+
 # internal imports
 from src.utils.single_content_completion import complete_single_content
 from src.utils.logger import log
@@ -40,7 +42,7 @@ try:
         with open(resume_input_path_sample, 'r') as file:
             resume_input = json.load(file)
 except Exception as e:
-    print(f"Error reading files: {e}")
+    raise ValueError(f"Error reading files: {e}")
 
 log('params and data loaded')
 
@@ -91,6 +93,23 @@ class GeneratedResume:
     def _set_gen_resume_components(self, resume_input):
         self.professional_experience_liminal = [] # will hold the intermediate data in processing created for the professional_experience_output
         self.personal_info = resume_input['personal_info']
+        # aggregate responsibilities from all domains into a single array
+        for employer in resume_input['professional_experience']:
+            if 'domains' in employer:
+                # Create a new array to store all responsibilities
+                all_responsibilities = []
+
+                # Iterate through each domain and its responsibilities
+                for domain_responsibilities in employer['domains'].values():
+                    # Extend the all_responsibilities array with the domain's responsibilities
+                    all_responsibilities.extend(domain_responsibilities)
+
+                # Replace the domains object with the flattened responsibilities array
+                employer['responsibilities'] = all_responsibilities
+
+                del all_responsibilities
+                del domain_responsibilities
+                del employer
         self.professional_experience_input = resume_input['professional_experience']
         self.education = resume_input['education']
         self.military_experience = resume_input['military_experience']
@@ -133,15 +152,27 @@ class GeneratedResume:
         if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
             raise ValueError("Error: role_description is not populated")
 
-        self.gen_tech_skills = complete_single_content(
-            "Extract the technical skills " +
-            "required within this job description: " +
-            self.job_description['role_description'] + " " +
-            "Examples of technical skills I would like to caputure: " +
-            "The definition of technical skills in this context does not include " +
-            "languages and cloud tools per se, but what is to be done with those tools." +
-            model_config['list_form_clause']
+        gen_tech_skills = complete_single_content(
+            f"""
+            - Extract the technical skills required within this job description: 
+            {self.job_description['role_description']} 
+            - Examples of technical skills I would like to capture: 
+            - The definition of technical skills in this context does not include 
+                languages and cloud tools per se, but what is to be done with those tools.
+            - Output should be a JSON array of strings.
+            {model_config['json_form_clause']}
+            """
         )
+
+        # convert the query result to an object, and raise error if it fails
+        try:
+            self.gen_tech_skills = ast.literal_eval(gen_tech_skills)
+        except Exception as e:
+            raise ValueError(
+                "Error: output not in expected format for object conversion. " +
+                f"Error: {e} " +
+                f"Output: {gen_tech_skills}"
+            )
 
 
     def _extract_tech_tools(self):
@@ -153,14 +184,26 @@ class GeneratedResume:
         if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
             raise ValueError("Error: role_description is not populated")
 
-
-        self.gen_tech_tools = complete_single_content(
-            "Extract all technology tools, e.g. coding languages, cloud " +
-            "development tools, and any specific development methodologies  " +
-            "required within this job description: " +
-            self.job_description['role_description'] + " " +
-            model_config['list_form_clause']
+        gen_tech_tools = complete_single_content(
+            f"""
+            - Extract all technology tools, e.g. coding languages, cloud 
+                development tools, and any specific development methodologies 
+                required within this job description: 
+                {self.job_description['role_description']} 
+            - Output should be a JSON array of strings.
+            - {model_config['json_form_clause']}
+            """
         )
+
+        # convert the query result to an object, and raise error if it fails
+        try:
+            self.gen_tech_tools = ast.literal_eval(gen_tech_tools)
+        except Exception as e:
+            raise ValueError(
+                "Error: output not in expected format for object conversion. " +
+                f"Error: {e} " +
+                f"Output: {gen_tech_tools}"
+            )
 
 
     def _extract_soft_skills(self):
@@ -172,11 +215,24 @@ class GeneratedResume:
         if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
             raise ValueError("Error: role_description is not populated")
 
-        self.gen_soft_skills = complete_single_content(
-            "Extract the key soft skills from this job description:" +
-            self.job_description['role_description'] +
-            model_config['list_form_clause']
+        gen_soft_skills = complete_single_content(
+            f"""
+            - Extract the key soft skills from this job description:
+                {self.job_description['role_description']} 
+            - Output should be a JSON array of strings.
+            - {model_config['json_form_clause']}
+            """
         )
+
+        # convert the query result to an object, and raise error if it fails
+        try:
+            self.gen_soft_skills = ast.literal_eval(gen_soft_skills)
+        except Exception as e:
+            raise ValueError(
+                "Error: output not in expected format for object conversion. " +
+                f"Error: {e} " +
+                f"Output: {gen_soft_skills}"
+            )
 
 
     def _select_all_relevant_experiences(self, i):
@@ -255,6 +311,103 @@ class GeneratedResume:
                f"Output: {most_relevant_responsibilities}"
             )
 
+
+    def _extract_hard_skills(self):
+        # ensure the exists of all required data points
+        for i in range(self.professional_experience_count):
+            if self.professional_experience_liminal[i][
+                'most_relevant_responsibilities'] is None or \
+                self.professional_experience_liminal[i][
+                    'most_relevant_responsibilities'] == "":
+                raise ValueError(
+                    "Error: most_relevant_responsibilities not populated")
+
+        all_responsibilities = []
+
+        for i in range(self.professional_experience_count):
+            all_responsibilities += self.professional_experience_liminal[i][
+                                            'most_relevant_responsibilities']
+
+        all_responsibilities = str(all_responsibilities)
+
+        skills = str(self.gen_tech_skills + self.gen_tech_tools)
+
+        hard_skills = complete_single_content(
+            f"""
+            You are tasked with extracting and categorizing purely technical skills from a set of json objects. Follow these instructions carefully:
+
+            Here are the input objects you will be working with:
+
+            {all_responsibilities}
+
+            prioritize the items collected giving item in this list precedence {skills}
+
+
+            You will categorize the extracted skills into the following categories:
+            1. Programming Languages and Libraries
+            2. Cloud, Open-Source, and Database
+            3. Data Science:
+            4. Data Visualization and Analysis
+
+            Include only the following types of skills:
+            - Programming languages, frameworks, and libraries
+            - Software tools and platforms
+            - Statistical and mathematical methods
+            - Data processing techniques
+            - Machine learning algorithms
+            - Database technologies
+            - Technical protocols and standards
+
+            Exclude all of the following:
+            - Soft skills (e.g., leadership, communication)
+            - Business terms and processes
+            - Project management terminology
+            - Team or interpersonal terms
+
+            Follow these rules when extracting and categorizing:
+            - Extract only explicitly mentioned technical terms
+            - Group related tools with parentheses: "Python (NumPy, Pandas)"
+            - use the categories provided
+            - Verify each term appears in the source text
+
+            Process the elements points as follows:
+            - Read through all the bullet points carefully
+            - Identify and extract technical skills based on the inclusion criteria
+            - Categorize each skill into one of the five provided categories
+            - Group related tools and technologies as specified
+            - Verify that each extracted term appears in the original text
+            - if there are more than 10 items in a category, delete the items that are least pertinent to the skills list
+            - if there are fewer than 5 items in a category, add related items
+
+            Present your final output as a JSON object with the following structure:
+            {{
+                "Programming Languages and Libraries": "item1, item2, item3 (sub1, sub2), item4",
+                "Cloud, Open-Source, and Database Tools": "item1, item2, item3 (sub1, sub2), item4",
+                "Data Science Techniques:": "item1, item2, item3",
+                "Data Visualization and Analysis": "item1, item2, item3",
+            }}
+
+            Ensure that:
+            1. The output is valid JSON
+            2. Categories are used as keys
+            3. Values are single comma-separated strings
+            4. There are no comments, notes, or additional text outside the JSON structure
+
+            Provide only the JSON object as your final output, with no additional text or commentary.
+            """
+        )
+
+        try:
+            hard_skills = ast.literal_eval(hard_skills)
+            self.hard_skills.update(hard_skills)
+        except Exception as e:
+            raise ValueError(
+                "Error: output not in expected format for dictionary conversion. " +
+                f"Error: {e} " +
+                f"Output: {hard_skills}"
+            )
+
+
     def _format_experiences(self, i):
         # ensure the exists of all required data points
         if self.professional_experience_liminal[i]['most_relevant_responsibilities'] is None or \
@@ -294,7 +447,7 @@ class GeneratedResume:
             For the following input:
             {self.professional_experience_liminal[i]['most_relevant_responsibilities']}
 
-            Return a JSON array of strings where each string is a transformed bullet point.'''
+            Return a JSON array of strings where each string is a transformed bullet point.
             """
         )
 
@@ -310,75 +463,6 @@ class GeneratedResume:
                 f"Output: {formatted_responsibilities}"
             )
 
-    def _extract_hard_skills(self):
-        # ensure the exists of all required data points
-        for i in range(self.professional_experience_count):
-            if self.professional_experience_liminal[i]['formatted_responsibilities'] is None or \
-                self.professional_experience_liminal[i]['formatted_responsibilities'] == "":
-                raise ValueError(
-                    "Error: formatted_responsibilities not populated")
-
-        formatted_responsibilities: str = ""
-
-        for i in range(self.professional_experience_count):
-            formatted_responsibilities += str(self.professional_experience_liminal[i]['formatted_responsibilities']) + "\n"
-
-        hard_skills = complete_single_content(
-            f"""Extract and categorize purely technical skills from the following resume bullet points:
-            
-            INPUT BULLET POINTS:
-            {formatted_responsibilities}
-            
-            INCLUDE ONLY:
-            - Programming languages, frameworks, libraries
-            - Software tools and platforms
-            - Statistical/mathematical methods
-            - Data processing techniques
-            - Machine learning algorithms
-            - Database technologies
-            - Technical protocols and standards
-            
-            EXCLUDE ALL:
-            - Soft skills (leadership, communication)
-            - Business terms and processes
-            - Project management terminology
-            - Team/interpersonal terms
-            
-            RULES:
-            1. Extract only explicitly mentioned technical terms
-            2. Maintain exact technical nomenclature
-            3. Group related tools with parentheses: "Python (NumPy, Pandas)"
-            4. Create only technical categories
-            5. Verify each term appears in source text
-            6. Flag ambiguous technical terms
-            7. Output must be valid JSON with categories as keys and single comma-separated strings as values
-            8. No comments, notes, or additional text outside JSON structure
-            
-            REQUIRED CATEGORIES:
-            - "Data Science & Analytics"
-            - "Programming & Tools"
-            - "Statistical Methods"
-            - "Database & Storage"
-            - "Machine Learning"
-            
-            FORMAT:
-            {{
-                "category_name": "item1, item2, item3 (sub1, sub2), item4",
-                ...
-            }}
-            
-            Return only the JSON object with no additional text or commentary.
-            """
-        )
-
-        try:
-            self.hard_skills = ast.literal_eval(hard_skills)
-        except Exception as e:
-            raise ValueError(
-                "Error: output not in expected format for dictionary conversion. " +
-                f"Error: {e} " +
-                f"Output: {hard_skills}"
-            )
 
     def _generate_role_title(self, i):
         """
@@ -443,6 +527,9 @@ class GeneratedResume:
             for future in futures:
                 future.result()
 
+        # extract hard skills
+        self._extract_hard_skills()
+
         # format experiences
         with ThreadPoolExecutor() as executor:
             indices = range(self.professional_experience_count)
@@ -455,9 +542,6 @@ class GeneratedResume:
 
             for future in futures:
                 future.result()
-
-        # extract hard skills
-        #self._extract_hard_skills()
 
         # assign role titles for all employers
         for i in range(len(self.professional_experience_liminal)):
@@ -668,12 +752,14 @@ class GeneratedResume:
 
         # build file output path and save doc
         resume_output_path = (
-            self.env_vars['RESUME_OUTPUT_PATH'] +
-            self.job_description['name_param'] +
-            self.personal_info['first_name'].lower() + "-" +
-            self.personal_info['last_name'].lower() + "-" +
-            '-resume.docx'
+            f"""
+            {self.env_vars['COVER_LETTER_OUTPUT_PATH']}
+            {self.personal_info['first_name'].lower()}-
+            {self.personal_info['last_name'].lower()}- 
+            {self.job_description['name_param']}-resume.docx
+            """
         )
+        resume_output_path = re.sub(r'\s+', '', resume_output_path)
         resume_doc.save(resume_output_path)
 
         log('generated resume successfully written to: "' + resume_output_path + '"')
@@ -738,12 +824,15 @@ class GeneratedResume:
         """
         log("pickling resume object")
         resume_pickle_path = (
-            self.env_vars['RESUME_OUTPUT_PATH'] +
-            self.job_description['name_param'] +
-            self.personal_info['first_name'].lower() + "-" +
-            self.personal_info['last_name'].lower() + "-" +
-            '-resume.pkl'
+            f"""
+            {self.env_vars['COVER_LETTER_OUTPUT_PATH']}
+            {self.personal_info['first_name'].lower()}-
+            {self.personal_info['last_name'].lower()}- 
+            {self.job_description['name_param']}-resume.pkl
+            """
         )
+        resume_pickle_path = re.sub(r'\s+', '', resume_pickle_path)
+  
         with open(resume_pickle_path, 'wb') as output:
             pickle.dump(self, output)
 
