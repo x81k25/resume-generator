@@ -669,9 +669,9 @@ class GeneratedResume:
         # build file output path and save doc
         resume_output_path = (
             self.env_vars['RESUME_OUTPUT_PATH'] +
+            self.job_description['name_param'] +
             self.personal_info['first_name'].lower() + "-" +
             self.personal_info['last_name'].lower() + "-" +
-            self.job_description['name_param'] +
             '-resume.docx'
         )
         resume_doc.save(resume_output_path)
@@ -739,9 +739,9 @@ class GeneratedResume:
         log("pickling resume object")
         resume_pickle_path = (
             self.env_vars['RESUME_OUTPUT_PATH'] +
+            self.job_description['name_param'] +
             self.personal_info['first_name'].lower() + "-" +
             self.personal_info['last_name'].lower() + "-" +
-            self.job_description['name_param'] +
             '-resume.pkl'
         )
         with open(resume_pickle_path, 'wb') as output:
