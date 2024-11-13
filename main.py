@@ -1,10 +1,6 @@
 # external package imports
 import argparse
-import os
-from dotenv import dotenv_values
 import json
-import yaml
-
 # internal package imports
 from src.core.generated_resume import GeneratedResume
 from src.core.generated_cover_letter import GeneratedCoverLetter
@@ -16,38 +12,11 @@ from src.utils.scrape_linkedin import LinkedinScraper
 # load params and data
 # ------------------------------------------------------------------------------
 
-log('loading params and data')
-
-env_vars = dotenv_values(".env")
-
-with open('config/model_v1.24.yaml', 'r') as file:
-    model_config = yaml.safe_load(file)
-
-with open('config/doc_format.yaml', 'r') as file:
-    doc_format = yaml.safe_load(file)
-
-# ingest files if needed
-resume_input_path = env_vars['RESUME_INPUT_PATH']
-resume_input_path_sample = env_vars['RESUME_INPUT_PATH_SAMPLE']
-
-# logical test to determine if file is present at RESUME_INPUT_PATH
-try:
-    if os.path.exists(resume_input_path):
-        with open(resume_input_path, 'r') as file:
-            resume_input = json.load(file)
-    else:
-        with open(resume_input_path_sample, 'r') as file:
-            resume_input = json.load(file)
-except Exception as e:
-    print(f"Error reading files: {e}")
-
 role_title_overrides =[
     "Senior Data Scientist",
     "Data Scientist",
     "AI/ML Consultant"
 ]
-
-log('params and data loaded')
 
 # ------------------------------------------------------------------------------
 # generate resume and cover letter from flat files
@@ -81,28 +50,16 @@ def generate_resume_from_flat(
     with open(full_jd_path, "r") as json_file:
         job_description = json.load(json_file)
 
-    # job_title_overrides = [
-    #     "Technical Program Manager",
-    #     "Data Science Project Manager",
-    #     "AI/ML Consultant"
-    # ]
-
     # create resume object
     generated_resume = GeneratedResume(
-        env_vars=env_vars,
-        model_config=model_config,
-        doc_format=doc_format,
+
         job_description = job_description,
-        resume_input=resume_input,
         role_title_overrides=role_title_overrides
     )
 
     generated_resume.generate_resume()
 
     generated_cover_letter = GeneratedCoverLetter(
-        env_vars=env_vars,
-        model_config=model_config,
-        doc_format=doc_format,
         job_description=job_description,
         personal_info=generated_resume.personal_info,
         resume=generated_resume.professional_experience_output
@@ -142,20 +99,13 @@ def generate_resume_via_otta(
 
     # create resume object
     generated_resume = GeneratedResume(
-        env_vars=env_vars,
-        model_config=model_config,
-        doc_format=doc_format,
         job_description=otta_scraper.job_description,
-        resume_input=resume_input,
         role_title_overrides=role_title_overrides
     )
 
     generated_resume.generate_resume()
 
     generated_cover_letter = GeneratedCoverLetter(
-        env_vars=env_vars,
-        model_config=model_config,
-        doc_format=doc_format,
         job_description=otta_scraper.job_description,
         personal_info=generated_resume.personal_info,
         resume=generated_resume.professional_experience_output
@@ -199,20 +149,13 @@ def generate_resume_via_linkedin(
 
     # create resume object
     generated_resume = GeneratedResume(
-        env_vars=env_vars,
-        model_config=model_config,
-        doc_format=doc_format,
         job_description=linkedin_scraper.job_description,
-        resume_input=resume_input,
         role_title_overrides=role_title_overrides
     )
 
     generated_resume.generate_resume()
 
     generated_cover_letter = GeneratedCoverLetter(
-        env_vars=env_vars,
-        model_config=model_config,
-        doc_format=doc_format,
         job_description=linkedin_scraper.job_description,
         personal_info=generated_resume.personal_info,
         resume=generated_resume.professional_experience_output

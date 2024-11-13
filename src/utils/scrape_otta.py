@@ -67,9 +67,13 @@ class OttaScraper:
                         full_text = h1_element.text.strip()
                         self.job_description['role_title'] = full_text.replace(self.job_description['company_name'], '').replace(',','').strip()
                         self.job_description['name_param'] = str(
-                            self.job_description['role_title'].replace(' ', '-').replace(',', '').lower() +
+                            self.job_description['company_name'].replace(' ',
+                                                                         '-').replace(
+                                ',', '').lower() +
                             '-' +
-                            self.job_description['company_name'].replace(' ', '-').replace(',', '').lower()
+                            self.job_description['role_title'].replace(' ',
+                                                                       '-').replace(
+                                ',', '').lower()
                         )
                         log('role title and company name extracted successfully')
         except Exception as e:
