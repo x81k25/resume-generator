@@ -184,16 +184,21 @@ class GeneratedResume:
         if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
             raise ValueError("Error: role_description is not populated")
 
-        gen_tech_tools = complete_single_content(
-            f"""
+        prompt = f"""
             - Extract all technology tools, e.g. coding languages, cloud 
                 development tools, and any specific development methodologies 
                 required within this job description: 
                 {self.job_description['role_description']} 
             - Output should be a JSON array of strings.
             - {model_config['json_form_clause']}
+        """
+
+        if self.job_description['key_skills'] is not None and len(self.job_description['key_skills']) > 0:
+            prompt += f"""
+                These skills must be included: {str(self.job_description['key_skills'])}
             """
-        )
+
+        gen_tech_tools = complete_single_content(prompt)
 
         # convert the query result to an object, and raise error if it fails
         try:
@@ -334,20 +339,27 @@ class GeneratedResume:
 
         hard_skills = complete_single_content(
             f"""
-            You are tasked with extracting and categorizing purely technical skills from a set of json objects. Follow these instructions carefully:
-
             Here are the input objects you will be working with:
+            <experiences>: {all_responsibilities}
+            <skills>: {skills}          
 
-            {all_responsibilities}
-
-            prioritize the items collected giving item in this list precedence {skills}
-
-
-            You will categorize the extracted skills into the following categories:
+            you will categorize the extracted skills into the following <category>:
             1. Programming Languages and Libraries
             2. Cloud, Open-Source, and Database
-            3. Data Science:
+            3. Data Science Techniques
             4. Data Visualization and Analysis
+
+            rules for inclusion/exclusion form each <category>:
+            1. Programming Languages and Libraries
+                - examples: Python, R, pandas, numpy, tensorflow, tidyverse
+            2. Cloud, Open-Source, and Database
+                - AWS, Azure, SQL, dbt, Snowflake, Docker, EC2, S3, Google Cloud Storage 
+            3. Data Science Techniques
+                - unsupervised learning, supervised learning, regression, classification, clustering
+                - do not include any coding libraries here, e.g. do not include pandas, numpy, or tensorflow
+            4. Data Visualization and Analysis
+                - include data visualization tools only
+                - examples: Tableau, PowerBI, ggplot, matplotlib, seaborn
 
             Include only the following types of skills:
             - Programming languages, frameworks, and libraries
@@ -364,36 +376,42 @@ class GeneratedResume:
             - Project management terminology
             - Team or interpersonal terms
 
-            Follow these rules when extracting and categorizing:
-            - Extract only explicitly mentioned technical terms
-            - Group related tools with parentheses: "Python (NumPy, Pandas)"
-            - use the categories provided
-            - Verify each term appears in the source text
+            follow these rules when extracting and categorizing:
+            - the tools needed will always be within the "how" key:value pair 
+            - extract only explicitly mentioned technical terms
+            - group related tools with parentheses: "Python (NumPy, Pandas)"; AWS (S3, EC2)
+            - use the categories provided and only the categories provided
+            - verify each term appears in the source text
 
-            Process the elements points as follows:
+            process the elements points as follows:
             - Read through all the bullet points carefully
             - Identify and extract technical skills based on the inclusion criteria
-            - Categorize each skill into one of the five provided categories
+            - Categorize each skill into one of the provided categories
             - Group related tools and technologies as specified
             - Verify that each extracted term appears in the original text
-            - if there are more than 10 items in a category, delete the items that are least pertinent to the skills list
-            - if there are fewer than 5 items in a category, add related items
+            
+            select which items item to choose based on these criteria in order
+            - each item should only appear in 1 <category> 
+            - include all items that appear in <skills> and <experiences>
+            - prioritize items that appear multiple times in <experiences>
+            - de-emphasize items that appear only once in <experiences> especially if they do not appear in <skills>
+            - if there are more than 10 items in a <category>, delete the items based on the above criteria
+            - if there are fewer than 5 items in a <category>, add more items similar to those already selected that also correspond to <skills> 
 
             Present your final output as a JSON object with the following structure:
             {{
                 "Programming Languages and Libraries": "item1, item2, item3 (sub1, sub2), item4",
                 "Cloud, Open-Source, and Database Tools": "item1, item2, item3 (sub1, sub2), item4",
-                "Data Science Techniques:": "item1, item2, item3",
+                "Data Science Techniques": "item1, item2, item3",
                 "Data Visualization and Analysis": "item1, item2, item3",
             }}
 
             Ensure that:
-            1. The output is valid JSON
-            2. Categories are used as keys
-            3. Values are single comma-separated strings
-            4. There are no comments, notes, or additional text outside the JSON structure
-
-            Provide only the JSON object as your final output, with no additional text or commentary.
+            - The output is valid JSON
+            - Categories are used as keys
+            - Values are single comma-separated strings
+            - There are no comments, notes, or additional text outside of the [] of the JSON array
+            - Provide only the JSON object as your final output, with no additional text or commentary.
             """
         )
 
@@ -415,39 +433,48 @@ class GeneratedResume:
             raise ValueError(
                 "Error: most_relevant_responsibilities not populated")
 
+        skills = str(
+            self.gen_tech_skills +
+            self.gen_tech_tools +
+            self.gen_soft_skills
+        )
+
         # execute query
         formatted_responsibilities = complete_single_content(
             f"""
-            Transform each JSON object in the provided array into resume bullet points. Each transformation should:
-            1. Analyze the work accomplishment against these skill categories:
-               Technical skills: {self.gen_tech_skills}
-               Tools: {self.gen_tech_tools}
-               Soft skills: {self.gen_soft_skills}
-            
-            2. Structure each bullet point as:
-               * Lead with technical action verb derived from "what"
-               * Include implementation details from "how" with tools in parentheses
-               * State business purpose or context
-               * End with original result exactly as provided
-            
-            3. Formatting rules:
-               * Present tools in parenthetical lists: (Tool1, Tool2, Tool3)
-               * Use serial commas in lists
-               * No titles or context prefix for array
-               * No characters outside of JSON array
-               * Maintain original quantitative or qualitative result language
-            
-            4. Emphasis guidelines:
-               * Preserve technical terminology that aligns with skill lists
-               * Include tools mentioned in original when they connect to listed skills
-               * Allow natural length variation based on skill density
-               * Maintain original impact descriptions whether qualitative or quantitative
-               * Let relative presence of skills in lists guide emphasis naturally
-            
-            For the following input:
-            {self.professional_experience_liminal[i]['most_relevant_responsibilities']}
+            You are tasked with transforming an array of work accomplishments into professional resume bullet points. Each bullet point should highlight relevant skills and tools while maintaining the original impact. Follow these instructions carefully:
 
-            Return a JSON array of strings where each string is a transformed bullet point.
+                <skills>: {skills}
+                <experiences>: {self.professional_experience_liminal[i]['most_relevant_responsibilities']}
+                
+                - for each experience in the <experiences>, create a sentence using this structure:
+                   - begin with a technical action verb derived from the "what" aspect
+                   - include implementation details from the "how" aspect
+                   - emphasize how items from <experiences> that are also included in <skills>
+                   - remove or de-emphasize how items from <experiences> that are not present in <skills>
+                   - state the business purpose or context
+                   - end with the result
+                
+                - individual sentence output formatting instructions:
+                   - use the CAR format for resume writing
+                   - attempt make each sentence AST optimized
+                       - but do not remove highly relevant content of elements with <skills> in order to reach AST compliance
+                   - do not include titles or context prefixes for the array
+                   - do not include the parenthesis from the how section; replace with natural language
+                
+                - for the collections of outputs as a whole
+                   - avoid excessive repetition
+                        - use a different action verb for each bullet point
+                        - using different verbs when referring to tools used, e.g. don't say "using Python" in every bullet point
+                   - if the same skill is used for multiple bullet points, make sure to include other how items to reduce over-repetition
+                
+                - output formatting
+                   - output will be JSON
+                   - output an array of string
+                   - output one string for each input "experience"
+                   - output no characters outside of the closing array bracket, i.e. []
+                
+                commence operation
             """
         )
 
