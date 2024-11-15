@@ -360,6 +360,7 @@ class GeneratedResume:
             4. Data Visualization and Analysis
                 - include data visualization tools only
                 - examples: Tableau, PowerBI, ggplot, matplotlib, seaborn
+                - do not include any data science libraries that are not solely used for data visualization 
 
             Include only the following types of skills:
             - Programming languages, frameworks, and libraries
@@ -396,8 +397,8 @@ class GeneratedResume:
             - prioritize items that appear multiple times in <experiences>
             - de-emphasize items that appear only once in <experiences> especially if they do not appear in <skills>
             - if there are more than 10 items in a <category>, delete the items based on the above criteria
-            - if there are fewer than 5 items in a <category>, add more items similar to those already selected that also correspond to <skills> 
-
+            - verify that every itme used appears in <experiences> at least once
+ 
             Present your final output as a JSON object with the following structure:
             {{
                 "Programming Languages and Libraries": "item1, item2, item3 (sub1, sub2), item4",
@@ -467,6 +468,7 @@ class GeneratedResume:
                         - use a different action verb for each bullet point
                         - using different verbs when referring to tools used, e.g. don't say "using Python" in every bullet point
                    - if the same skill is used for multiple bullet points, make sure to include other how items to reduce over-repetition
+                   - select the ordering of the sentences based on the relevance to the <skills>
                 
                 - output formatting
                    - output will be JSON

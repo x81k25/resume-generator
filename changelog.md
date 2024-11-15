@@ -1,6 +1,7 @@
 # Changelog
 
 ## [1.31]
+- add added multi-threading on API calls that can be made simaltaneously
 - added function to automatically generate the list of hard skills
 - due to the introduction of the automatic hard skills insertion, well de-emphasize hard skills in the responsiblities section
 
