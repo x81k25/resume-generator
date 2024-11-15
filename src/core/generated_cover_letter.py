@@ -6,6 +6,7 @@ from dotenv import dotenv_values
 import json
 import pathlib
 import os
+import re
 import yaml
 # internal imports
 from src.utils.single_content_completion import complete_single_content
@@ -67,7 +68,6 @@ class GeneratedCoverLetter:
         self.resume = resume
         # generated content to be defined via methods
         self.cover_letter_text = None
-        self.cover_letter_output_path = None
         log("GeneratedCoverLetter object initialized")
 
 
@@ -83,7 +83,7 @@ class GeneratedCoverLetter:
         cl_content_path = self.env_vars['COVER_LETTER_CONTENT_PATH'] + self.job_description['company_name'] + '.txt'
 
         if pathlib.Path(cl_content_path).exists():
-            with open(self.env_vars['COVER_LETTER_CONTENT_PATH'], 'r', encoding='utf-8') as f:
+            with open(cl_content_path, 'r', encoding='utf-8') as f:
                 cl_content = f.read()
         else:
             cl_content = None
@@ -193,17 +193,18 @@ class GeneratedCoverLetter:
         )
 
         # build cover letter output path and save
-        self.cover_letter_output_path = (
-            self.env_vars['COVER_LETTER_OUTPUT_PATH'] +
-            self.job_description['name_param'] +
-            self.personal_info['first_name'].lower() + "-" +
-            self.personal_info['last_name'].lower() + "-" +
-            "-cover-letter.docx"
+        cover_letter_output_path = (
+            f"""
+            {self.env_vars['COVER_LETTER_OUTPUT_PATH']}
+            {self.personal_info['first_name'].lower()}-
+            {self.personal_info['last_name'].lower()}- 
+            {self.job_description['name_param']}-cover-letter.docx
+            """
         )
+        cover_letter_output_path = re.sub(r'\s+', '', cover_letter_output_path)
+        cover_letter_doc.save(cover_letter_output_path)
 
-        cover_letter_doc.save(self.cover_letter_output_path)
-
-        log("cover letter saved to " + self.cover_letter_output_path)
+        log("cover letter saved to " + cover_letter_output_path)
 
 # ------------------------------------------------------------------------------
 # primary cover letter generation method

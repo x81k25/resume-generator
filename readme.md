@@ -1,6 +1,6 @@
 # AI Resume and Cover Letter Generator
 
-This project uses OpenAI's GPT models to generate tailored resumes and cover letters based on job descriptions. It takes a comprehensive list of your skills and experiences from a JSON file and customizes them to match specific job requirements.
+This project uses Anthropic's chat completion models to generate tailored resumes and cover letters based on job descriptions. It takes a comprehensive list of your skills and experiences from a JSON file and customizes them to match specific job requirements.
 
 ## Features
 
@@ -15,7 +15,7 @@ This project uses OpenAI's GPT models to generate tailored resumes and cover let
 ## Prerequisites
 
 - Python 3.x
-- OpenAI API key
+- Anthropic API key
 - Virtual environment tool (e.g., venv, conda)
 
 ## Setup
@@ -44,8 +44,8 @@ pip install -r requirements.txt
 ```bash
 # Copy sample.env to .env
 cp sample.env .env
-# Edit .env and add your OpenAI API key
-OPENAI_API_KEY=your-api-key-here
+# Edit .env and add your Anthropic API key
+Anthropic_API_KEY=your-api-key-here
 ```
 
 ## Project Structure
