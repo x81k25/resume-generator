@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.32]
+- moved prompts from inside the body of the src-core code to the model config files to more easily track how prompts are evolving through the iterations
+- started to make accomodations for the Anthropic API 'overloaded_errors' to pause and retry pipeline instead of failing
+
 ## [1.31]
 - add added multi-threading on API calls that can be made simaltaneously
 - added function to automatically generate the list of hard skills

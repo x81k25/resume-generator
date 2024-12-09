@@ -1,4 +1,5 @@
 import anthropic
+from anthropic import InternalServerError
 from dotenv import load_dotenv
 import time
 import yaml
@@ -16,24 +17,37 @@ def complete_single_content(
     """
     Calls the OpenAI chat completion API and returns the text component of the
     API response.
-    :param max_tokens: max tokens for allowed response
     :param content: string to be passed to the API
-    :param temp: affects randomness of the response on a range of 0 to 2,
-        with 0 being the most rigid and 2 being the most creative
+    :param max_tokens: max tokens for allowed response
     :return: text component of the API response
     """
-    client = client = anthropic.Anthropic()
+    client = anthropic.Anthropic()
 
     start_time = time.time()
-    completion = client.messages.create(
-        model=model_config['anthropic_model_version'],
-        max_tokens=max_tokens,
-        messages=[
-            {
-                "role": "user",
-                "content": str(content)}
-        ]
-    )
+
+    try:
+        completion = client.messages.create(
+            model=model_config['anthropic_model_version'],
+            max_tokens=max_tokens,
+            messages=[
+                {
+                    "role": "user",
+                    "content": str(content)}
+            ]
+        )
+    except InternalServerError as e:
+        if e.error.get('type') == 'overloaded_error':
+            # Custom response for 'Overloaded' error
+            print("The server is currently overloaded. Please try again later.")
+            return None
+        else:
+            # Log or handle other types of InternalServerError
+            print(f"An unexpected InternalServerError occurred: {e}")
+            return None
+    except Exception as e:
+        # Catch any other unexpected exceptions
+        print(f"An unexpected error occurred: {e}")
+        return None
 
     end_time = time.time()
     duration = end_time - start_time
@@ -48,7 +62,7 @@ def complete_single_content(
         #f"prompt:               {content}..." + "\n" +
         f"prompt:               {content[:60].replace('\n', ' ')}..." + "\n" +
         f"output:               {completion.content[0].text}"
-        #f"output:               {completion.choices[0].message.content[:40].replace('\n', ' ')}"
+        #f"output:               {completion.message.content[:40].replace('\n', ' ')}"
     )
 
     log(print_output)

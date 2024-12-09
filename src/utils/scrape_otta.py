@@ -20,10 +20,10 @@ class OttaScraper:
         self.html_content = None
         self.soup = None
         self.job_description: Dict[str, Optional[str | List[str]]] = {
-            'company_name': None,
-            'role_title': None,
-            'name_param': None,
-            'role_description': None,
+            'company_name': "undetermined",
+            'role_title': "undetermined",
+            'name_param': "undetermined",
+            'role_description': "undetermined",
             'key_skills': [],
             'company_sectors': []
         }
@@ -66,18 +66,103 @@ class OttaScraper:
                         # Get the full text and remove the company name to get the job title
                         full_text = h1_element.text.strip()
                         self.job_description['role_title'] = full_text.replace(self.job_description['company_name'], '').replace(',','').strip()
-                        self.job_description['name_param'] = str(
-                            self.job_description['company_name'].replace(' ',
-                                                                         '-').replace(
-                                ',', '').lower() +
-                            '-' +
-                            self.job_description['role_title'].replace(' ',
-                                                                       '-').replace(
-                                ',', '').lower()
-                        )
                         log('role title and company name extracted successfully')
         except Exception as e:
             raise Exception(f'Error extracting role title and company name: {e}')
+
+
+    def _generate_name_param(self):
+        """
+        Generate a name parameter for the job description.
+        The name parameter is a lowercase string with spaces replaced by hyphens.
+        If company name or role title is missing, prompts user for input.
+        """
+        log("generating name parameter...")
+
+        company_name = "undetermined"
+        role_title = "undetermined"
+
+        try:
+            company_name = self.job_description.get('company_name',
+                                                    'undetermined')
+            role_title = self.job_description.get('role_title', 'undetermined')
+
+            # Check if either field is undetermined and prompt for input
+            if company_name == "undetermined" or role_title == "undetermined":
+                print("\nMissing required data for name parameter generation.")
+
+                if company_name == "undetermined":
+                    user_input = input(
+                        "Please enter the company name: ").strip()
+                    if user_input:
+                        company_name = user_input
+                        self.job_description['company_name'] = user_input
+                    else:
+                        raise Exception("Company name cannot be empty")
+
+                if role_title == "undetermined":
+                    user_input = input("Please enter the role title: ").strip()
+                    if user_input:
+                        role_title = user_input
+                        self.job_description['role_title'] = user_input
+                    else:
+                        raise Exception("Role title cannot be empty")
+
+            # Process the names with regex
+            company_name = re.sub('[^a-zA-Z0-9]', '-', company_name).lower()
+            role_title = re.sub('[^a-zA-Z0-9]', '-', role_title).lower()
+
+            # Generate the name parameter
+            name_param = str(company_name + "-" + role_title)
+            name_param = re.sub('-{2,}', '-', name_param)
+            self.job_description['name_param'] = name_param
+            log(f"successfully generated name parameter: {name_param}")
+
+        except Exception as e:
+            output = (
+                f"error generating name parameter: {e}\n" +
+                f"company name: {company_name}\n" +
+                f"role title: {role_title}\n" +
+                f"name_param: {self.job_description.get('name_param', 'not_set')}"
+            )
+            log(output)
+            raise Exception(output)
+
+    # def _generate_name_param(self):
+    #     """
+	# 	Generate a name parameter for the job description.
+	# 	The name parameter is a lowercase string with spaces replaced by hyphens.
+	# 	"""
+    #     log("generating name parameter...")
+    #
+    #     company_name = "undetermined"
+    #     role_title = "undetermined"
+    #
+    #     try:
+    #         company_name = re.sub('[^a-zA-Z0-9]', '-',
+    #                               self.job_description['company_name']).lower()
+    #         role_title = re.sub('[^a-zA-Z0-9]', '-',
+    #                             self.job_description['role_title']).lower()
+    #
+    #         if(
+    #             self.job_description['role_title'] != "undetermined" and
+    #             self.job_description['company_name'] != "undetermined"
+    #         ):
+    #             name_param = str(company_name + "-" + role_title)
+    #             name_param = re.sub('-{2,}', '-', name_param)
+    #             self.job_description['name_param'] = name_param
+    #             log(f"successfully generated name parameter: {name_param}")
+    #         else :
+    #             raise Exception("role title or company name is undetermined")
+    #     except Exception as e:
+    #         output = (
+    #             f"error generating name parameter: {e}\n" +
+    #             f"company name: {company_name}\n" +
+    #             f"role title: {role_title}\n" +
+    #             f"name_param: {self.job_description['name_param']}"
+    #         )
+    #         log(output)
+    #         raise Exception(output)
 
     def _extract_role_description(self):
         """
@@ -165,6 +250,7 @@ class OttaScraper:
         log('initializing full scrape of otta job description...')
         self._fetch_webpage()
         self._extract_role_title_and_company_name()
+        self._generate_name_param()
         self._extract_role_description()
         self._extract_key_skills()
         self._extract_company_sectors()

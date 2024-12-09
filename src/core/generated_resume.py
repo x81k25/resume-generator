@@ -23,7 +23,7 @@ log('loading params and data')
 
 env_vars = dotenv_values(".env")
 
-with open('config/model_v1.25.yaml', 'r') as file:
+with open('config/model_v1.3.2.yaml', 'r') as file:
     model_config: object = yaml.safe_load(file)
 
 with open('config/doc_format.yaml', 'r') as file:
@@ -93,22 +93,22 @@ class GeneratedResume:
     def _set_gen_resume_components(self, resume_input):
         self.professional_experience_liminal = [] # will hold the intermediate data in processing created for the professional_experience_output
         self.personal_info = resume_input['personal_info']
-        # aggregate responsibilities from all domains into a single array
+        # aggregate experiences from all domains into a single array
         for employer in resume_input['professional_experience']:
             if 'domains' in employer:
-                # Create a new array to store all responsibilities
-                all_responsibilities = []
+                # Create a new array to store all experiences
+                all_experience = []
 
-                # Iterate through each domain and its responsibilities
-                for domain_responsibilities in employer['domains'].values():
-                    # Extend the all_responsibilities array with the domain's responsibilities
-                    all_responsibilities.extend(domain_responsibilities)
+                # Iterate through each domain and its experiences
+                for domain_experience in employer['domains'].values():
+                    # Extend the all_experience array with the domain's experiences
+                    all_experience.extend(domain_experience)
 
-                # Replace the domains object with the flattened responsibilities array
-                employer['responsibilities'] = all_responsibilities
+                # Replace the domains object with the flattened experiences array
+                employer['experience'] = all_experience
 
-                del all_responsibilities
-                del domain_responsibilities
+                del all_experience
+                del domain_experience
                 del employer
         self.professional_experience_input = resume_input['professional_experience']
         self.education = resume_input['education']
@@ -152,17 +152,15 @@ class GeneratedResume:
         if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
             raise ValueError("Error: role_description is not populated")
 
-        gen_tech_skills = complete_single_content(
-            f"""
-            - Extract the technical skills required within this job description: 
-            {self.job_description['role_description']} 
-            - Examples of technical skills I would like to capture: 
-            - The definition of technical skills in this context does not include 
-                languages and cloud tools per se, but what is to be done with those tools.
-            - Output should be a JSON array of strings.
-            {model_config['json_form_clause']}
-            """
-        )
+        # extract prompt from config and insert prompt inputs
+        prompt = model_config['tech_skills_extraction_prompt']
+        prompt_inputs = {
+            "role_description": self.job_description['role_description'],
+            "json_form_clause": model_config['json_form_clause']
+        }
+        prompt = prompt.format_map(prompt_inputs)
+
+        gen_tech_skills = complete_single_content(prompt)
 
         # convert the query result to an object, and raise error if it fails
         try:
@@ -184,19 +182,13 @@ class GeneratedResume:
         if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
             raise ValueError("Error: role_description is not populated")
 
-        prompt = f"""
-            - Extract all technology tools, e.g. coding languages, cloud 
-                development tools, and any specific development methodologies 
-                required within this job description: 
-                {self.job_description['role_description']} 
-            - Output should be a JSON array of strings.
-            - {model_config['json_form_clause']}
-        """
-
-        if self.job_description['key_skills'] is not None and len(self.job_description['key_skills']) > 0:
-            prompt += f"""
-                These skills must be included: {str(self.job_description['key_skills'])}
-            """
+        prompt = model_config['tech_tools_extraction_prompt']
+        prompt_inputs = {
+            "role_description": self.job_description['role_description'],
+            "key_skills": self.job_description['key_skills'],
+            "json_form_clause": model_config['json_form_clause']
+        }
+        prompt = prompt.format_map(prompt_inputs)
 
         gen_tech_tools = complete_single_content(prompt)
 
@@ -220,14 +212,14 @@ class GeneratedResume:
         if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
             raise ValueError("Error: role_description is not populated")
 
-        gen_soft_skills = complete_single_content(
-            f"""
-            - Extract the key soft skills from this job description:
-                {self.job_description['role_description']} 
-            - Output should be a JSON array of strings.
-            - {model_config['json_form_clause']}
-            """
-        )
+        prompt = model_config['soft_skills_extraction_prompt']
+        prompt_inputs = {
+            "role_description": self.job_description['role_description'],
+            "json_form_clause": model_config['json_form_clause']
+        }
+        prompt = prompt.format_map(prompt_inputs)
+
+        gen_soft_skills = complete_single_content(prompt)
 
         # convert the query result to an object, and raise error if it fails
         try:
@@ -240,15 +232,15 @@ class GeneratedResume:
             )
 
 
-    def _select_all_relevant_experiences(self, i):
+    def _select_all_relevant_experience(self, i):
         """
         Select all relevant experiences from the professional experience input
         :param i: index of the professional experience input
-        :write: self.professional_experience_liminal[i]['all_relevant_responsibilities']
+        :write: self.professional_experience_liminal[i]['all_relevant_experience']
         """
         # ensure all required data points are populated
-        if self.professional_experience_input[i]['responsibilities'] is None or self.professional_experience_input[i]['responsibilities'] == "":
-            raise ValueError("Error: role responsibilities not populated")
+        if self.professional_experience_input[i]['experience'] is None or self.professional_experience_input[i]['experience'] == "":
+            raise ValueError("Error: role experience not populated")
         if self.gen_tech_skills is None or self.gen_tech_skills == "":
             raise ValueError("Error: tech skills not populated")
         if self.gen_tech_tools is None or self.gen_tech_tools == "":
@@ -256,64 +248,62 @@ class GeneratedResume:
         if self.gen_soft_skills is None or self.gen_soft_skills == "":
             raise ValueError("Error: soft skills not populated")
 
+        prompt = model_config['select_all_experience_prompt']
+        prompt_inputs = {
+            "experience": self.professional_experience_input[i]['experience'],
+            "skills": self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills,
+            "experience_count": self.model_config['experience_count'][i],
+            "json_form_clause": model_config['json_form_clause']
+        }
+        prompt = prompt.format_map(prompt_inputs)
+
         # run query
-        all_relevant_responsibilities = complete_single_content(
-            f"""
-            From this list: {str(self.professional_experience_input[i]['responsibilities'])} 
-            select any of the elements that are in any way related to these skills: 
-            {self.gen_tech_skills} + {self.gen_tech_tools} + {self.gen_soft_skills} . 
-            At least {str(self.model_config['responsibility_count'][i])} elements must be selected. 
-            {model_config['json_form_clause']}
-            """
-        )
+        all_relevant_experience = complete_single_content(prompt)
 
         # convert the query to an object, and raise error if it fails
         try:
-            self.professional_experience_liminal[i]['all_relevant_responsibilities'] = \
-                ast.literal_eval(all_relevant_responsibilities)
+            self.professional_experience_liminal[i]['all_relevant_experience'] = \
+                ast.literal_eval(all_relevant_experience)
         except Exception as e:
             raise ValueError(
                 "Error: output not in expected format for dictionary conversion. " +
                 f"Error: {e} " +
-                f"Output: {all_relevant_responsibilities}"
+                f"Output: {all_relevant_experience}"
             )
 
 
-    def _select_most_relevant_experiences(self, i):
+    def _select_most_relevant_experience(self, i):
         """
         Select the most relevant experiences from the professional experience input
         :param i: index of the professional experience input
-        :write: self.professional_experience_liminal[i]['most_relevant_responsibilities']
+        :write: self.professional_experience_liminal[i]['most_relevant_experience']
         """
         # ensure the exists of all required data points
-        if self.professional_experience_liminal[i]['all_relevant_responsibilities'] is None or self.professional_experience_liminal[i]['all_relevant_responsibilities'] == "":
-            raise ValueError("Error: all_relevant_responsibilities not populated")
+        if self.professional_experience_liminal[i]['all_relevant_experience'] is None or self.professional_experience_liminal[i]['all_relevant_experience'] == "":
+            raise ValueError("Error: all_relevant_experience not populated")
+
+        prompt = model_config['select_most_relevant_experience_prompt']
+        prompt_inputs = {
+            "experience": self.professional_experience_input[i]['experience'],
+            "skills": self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills,
+            "experience_count": self.model_config['experience_count'][i],
+            "json_form_clause": model_config['json_form_clause']
+        }
+        prompt = prompt.format_map(prompt_inputs)
 
         # execute query
-        most_relevant_responsibilities = complete_single_content(
-            f"""
-            "From this list of responsibilities: 
-            {str(self.professional_experience_liminal[i]['all_relevant_responsibilities'])} 
-            select the 
-            {str(self.model_config['responsibility_count'][i])} 
-            most relevant entries that correspond to these skills: 
-            {self.gen_tech_skills}  
-            {self.gen_tech_tools}  
-            {self.gen_soft_skills} . 
-            {self.model_config['json_form_clause']}
-            """
-        )
+        most_relevant_experience = complete_single_content(prompt)
 
         # convert the query to an object, and raise error if it fails
         try:
             self.professional_experience_liminal[i][
-               'most_relevant_responsibilities'] = \
-               ast.literal_eval(most_relevant_responsibilities)
+               'most_relevant_experience'] = \
+               ast.literal_eval(most_relevant_experience)
         except Exception as e:
             raise ValueError(
                "Error: output not in expected format for dictionary conversion. " +
                f"Error: {e} " +
-               f"Output: {most_relevant_responsibilities}"
+               f"Output: {most_relevant_experience}"
             )
 
 
@@ -321,100 +311,26 @@ class GeneratedResume:
         # ensure the exists of all required data points
         for i in range(self.professional_experience_count):
             if self.professional_experience_liminal[i][
-                'most_relevant_responsibilities'] is None or \
+                'most_relevant_experience'] is None or \
                 self.professional_experience_liminal[i][
-                    'most_relevant_responsibilities'] == "":
+                    'most_relevant_experience'] == "":
                 raise ValueError(
-                    "Error: most_relevant_responsibilities not populated")
+                    "Error: most_relevant_experience not populated")
 
-        all_responsibilities = []
+        all_experience = []
 
         for i in range(self.professional_experience_count):
-            all_responsibilities += self.professional_experience_liminal[i][
-                                            'most_relevant_responsibilities']
+            all_experience += self.professional_experience_liminal[i][
+                                            'most_relevant_experience']
 
-        all_responsibilities = str(all_responsibilities)
+        prompt = model_config['extract_hard_skills_prompt']
+        prompt_inputs = {
+            "experience": all_experience,
+            "skills": self.gen_tech_skills + self.gen_tech_tools,
+        }
+        prompt = prompt.format_map(prompt_inputs)
 
-        skills = str(self.gen_tech_skills + self.gen_tech_tools)
-
-        hard_skills = complete_single_content(
-            f"""
-            Here are the input objects you will be working with:
-            <experiences>: {all_responsibilities}
-            <skills>: {skills}          
-
-            you will categorize the extracted skills into the following <category>:
-            1. Programming Languages and Libraries
-            2. Cloud, Open-Source, and Database
-            3. Data Science Techniques
-            4. Data Visualization and Analysis
-
-            rules for inclusion/exclusion form each <category>:
-            1. Programming Languages and Libraries
-                - examples: Python, R, pandas, numpy, tensorflow, tidyverse
-            2. Cloud, Open-Source, and Database
-                - AWS, Azure, SQL, dbt, Snowflake, Docker, EC2, S3, Google Cloud Storage 
-            3. Data Science Techniques
-                - unsupervised learning, supervised learning, regression, classification, clustering
-                - do not include any coding libraries here, e.g. do not include pandas, numpy, or tensorflow
-            4. Data Visualization and Analysis
-                - include data visualization tools only
-                - examples: Tableau, PowerBI, ggplot, matplotlib, seaborn
-                - do not include any data science libraries that are not solely used for data visualization 
-
-            Include only the following types of skills:
-            - Programming languages, frameworks, and libraries
-            - Software tools and platforms
-            - Statistical and mathematical methods
-            - Data processing techniques
-            - Machine learning algorithms
-            - Database technologies
-            - Technical protocols and standards
-
-            Exclude all of the following:
-            - Soft skills (e.g., leadership, communication)
-            - Business terms and processes
-            - Project management terminology
-            - Team or interpersonal terms
-
-            follow these rules when extracting and categorizing:
-            - the tools needed will always be within the "how" key:value pair 
-            - extract only explicitly mentioned technical terms
-            - group related tools with parentheses: "Python (NumPy, Pandas)"; AWS (S3, EC2)
-            - use the categories provided and only the categories provided
-            - verify each term appears in the source text
-
-            process the elements points as follows:
-            - Read through all the bullet points carefully
-            - Identify and extract technical skills based on the inclusion criteria
-            - Categorize each skill into one of the provided categories
-            - Group related tools and technologies as specified
-            - Verify that each extracted term appears in the original text
-            
-            select which items item to choose based on these criteria in order
-            - each item should only appear in 1 <category> 
-            - include all items that appear in <skills> and <experiences>
-            - prioritize items that appear multiple times in <experiences>
-            - de-emphasize items that appear only once in <experiences> especially if they do not appear in <skills>
-            - if there are more than 10 items in a <category>, delete the items based on the above criteria
-            - verify that every itme used appears in <experiences> at least once
- 
-            Present your final output as a JSON object with the following structure:
-            {{
-                "Programming Languages and Libraries": "item1, item2, item3 (sub1, sub2), item4",
-                "Cloud, Open-Source, and Database Tools": "item1, item2, item3 (sub1, sub2), item4",
-                "Data Science Techniques": "item1, item2, item3",
-                "Data Visualization and Analysis": "item1, item2, item3",
-            }}
-
-            Ensure that:
-            - The output is valid JSON
-            - Categories are used as keys
-            - Values are single comma-separated strings
-            - There are no comments, notes, or additional text outside of the [] of the JSON array
-            - Provide only the JSON object as your final output, with no additional text or commentary.
-            """
-        )
+        hard_skills = complete_single_content(prompt)
 
         try:
             hard_skills = ast.literal_eval(hard_skills)
@@ -427,69 +343,33 @@ class GeneratedResume:
             )
 
 
-    def _format_experiences(self, i):
+    def _format_experience(self, i):
         # ensure the exists of all required data points
-        if self.professional_experience_liminal[i]['most_relevant_responsibilities'] is None or \
-            self.professional_experience_liminal[i]['most_relevant_responsibilities'] == "":
+        if self.professional_experience_liminal[i]['most_relevant_experience'] is None or \
+            self.professional_experience_liminal[i]['most_relevant_experience'] == "":
             raise ValueError(
-                "Error: most_relevant_responsibilities not populated")
+                "Error: most_relevant_experience not populated")
 
-        skills = str(
-            self.gen_tech_skills +
-            self.gen_tech_tools +
-            self.gen_soft_skills
-        )
+        prompt = model_config['format_experience_prompt']
+        prompt_inputs = {
+            "experience": self.professional_experience_liminal[i]['most_relevant_experience'],
+            "skills": self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills
+        }
+        prompt = prompt.format_map(prompt_inputs)
 
         # execute query
-        formatted_responsibilities = complete_single_content(
-            f"""
-            You are tasked with transforming an array of work accomplishments into professional resume bullet points. Each bullet point should highlight relevant skills and tools while maintaining the original impact. Follow these instructions carefully:
-
-                <skills>: {skills}
-                <experiences>: {self.professional_experience_liminal[i]['most_relevant_responsibilities']}
-                
-                - for each experience in the <experiences>, create a sentence using this structure:
-                   - begin with a technical action verb derived from the "what" aspect
-                   - include implementation details from the "how" aspect
-                   - emphasize how items from <experiences> that are also included in <skills>
-                   - remove or de-emphasize how items from <experiences> that are not present in <skills>
-                   - state the business purpose or context
-                   - end with the result
-                
-                - individual sentence output formatting instructions:
-                   - use the CAR format for resume writing
-                   - attempt make each sentence AST optimized
-                       - but do not remove highly relevant content of elements with <skills> in order to reach AST compliance
-                   - do not include titles or context prefixes for the array
-                   - do not include the parenthesis from the how section; replace with natural language
-                
-                - for the collections of outputs as a whole
-                   - avoid excessive repetition
-                        - use a different action verb for each bullet point
-                        - using different verbs when referring to tools used, e.g. don't say "using Python" in every bullet point
-                   - if the same skill is used for multiple bullet points, make sure to include other how items to reduce over-repetition
-                   - select the ordering of the sentences based on the relevance to the <skills>
-                
-                - output formatting
-                   - output will be JSON
-                   - output an array of string
-                   - output one string for each input "experience"
-                   - output no characters outside of the closing array bracket, i.e. []
-                
-                commence operation
-            """
-        )
+        formatted_experience = complete_single_content(prompt)
 
         # convert the query to an object, and raise error if it fails
         try:
             self.professional_experience_liminal[i][
-                'formatted_responsibilities'] = \
-                ast.literal_eval(formatted_responsibilities)
+                'formatted_experience'] = \
+                ast.literal_eval(formatted_experience)
         except Exception as e:
             raise ValueError(
                 "Error: output not in expected format for dictionary conversion. " +
                 f"Error: {e} " +
-                f"Output: {formatted_responsibilities}"
+                f"Output: {formatted_experience}"
             )
 
 
@@ -498,12 +378,15 @@ class GeneratedResume:
 		calls the OpenAI chat completion API and returns the title of the role
 		:write: self.professional_experience_liminal[i]['role_title']
 		"""
-        self.professional_experience_liminal[i]["role_title"] = complete_single_content(
-            f"""
-            Return only one job title given the following list of responsibilities: 
-            {self.professional_experience_liminal[i]['formatted_responsibilities']}
-            """
-        )
+        prompt = model_config['generate_role_title_prompt']
+        prompt_inputs = {
+            "experience": self.professional_experience_liminal[i]['formatted_experience']
+        }
+        prompt = prompt.format_map(prompt_inputs)
+
+        role_title = complete_single_content(prompt)
+
+        self.professional_experience_liminal[i]["role_title"] = role_title
 
 # ------------------------------------------------------------------------------
 # sub-functions over the over-arching generate_resume function below
@@ -534,7 +417,7 @@ class GeneratedResume:
         with ThreadPoolExecutor() as executor:
             indices = range(self.professional_experience_count)
             futures = {
-                executor.submit(self._select_all_relevant_experiences, i)
+                executor.submit(self._select_all_relevant_experience, i)
                 for i in indices
             }
 
@@ -547,7 +430,7 @@ class GeneratedResume:
         with ThreadPoolExecutor() as executor:
             indices = range(self.professional_experience_count)
             futures = {
-                executor.submit(self._select_most_relevant_experiences, i)
+                executor.submit(self._select_most_relevant_experience, i)
                 for i in indices
             }
 
@@ -556,16 +439,14 @@ class GeneratedResume:
             for future in futures:
                 future.result()
 
-        # extract hard skills
-        self._extract_hard_skills()
-
-        # format experiences
+        # extract hard skills and format experiences
         with ThreadPoolExecutor() as executor:
             indices = range(self.professional_experience_count)
             futures = {
-                executor.submit(self._format_experiences, i)
+                executor.submit(self._format_experience, i)
                 for i in indices
             }
+            futures.add(executor.submit(self._extract_hard_skills))
 
             wait(futures, return_when=ALL_COMPLETED)
 
@@ -573,11 +454,19 @@ class GeneratedResume:
                 future.result()
 
         # assign role titles for all employers
-        for i in range(len(self.professional_experience_liminal)):
-            if self.role_title_overrides[i] is not None:
-                self.professional_experience_liminal[i]['role_title'] = self.role_title_overrides[i]
-            else:
-                self._generate_role_title(i)
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            for i in range(len(self.professional_experience_liminal)):
+                if self.role_title_overrides[i] is not None:
+                    self.professional_experience_liminal[i]['role_title'] = \
+                    self.role_title_overrides[i]
+                else:
+                    futures.append(
+                        executor.submit(self._generate_role_title, i))
+
+            wait(futures, return_when=ALL_COMPLETED)
+            for future in futures:
+                future.result()
 
         # display role_title results to user
         string_output = "Generated role titles: \n"
@@ -597,7 +486,7 @@ class GeneratedResume:
              self.professional_experience_output[i]['role_title'] = self.professional_experience_liminal[i]['role_title']
              self.professional_experience_output[i]['employment_start'] = self.professional_experience_input[i]['employment_start']
              self.professional_experience_output[i]['employment_end'] = self.professional_experience_input[i]['employment_end']
-             self.professional_experience_output[i]['responsibilities'] = self.professional_experience_liminal[i]['formatted_responsibilities']
+             self.professional_experience_output[i]['experience'] = self.professional_experience_liminal[i]['formatted_experience']
 
         # inform user run was successful
         log('professional_experience output stored in GeneratedResume.professional_experience_output')
@@ -697,8 +586,8 @@ class GeneratedResume:
                         run.font.bold = sub_header_bold
                         run.font.size = sub_header_font_size
                         run.font.name = 'Arial'
-            for j in range(len(self.professional_experience_output[i]['responsibilities'])):
-                resume_doc.add_paragraph(self.professional_experience_output[i]['responsibilities'][j],
+            for j in range(len(self.professional_experience_output[i]['experience'])):
+                resume_doc.add_paragraph(self.professional_experience_output[i]['experience'][j],
                                          style='List Bullet')
             resume_doc.add_paragraph("")
 

@@ -1,0 +1,176 @@
+# chat complete temperature for resume generation
+anthropic_model_version: claude-3-5-sonnet-20241022
+# chat complete temperature for resume generation
+resume_gen_temp: 0.3
+# chat completion temperature for cover letter generation
+cover_letter_gen_temp: 1.0
+# number of responsibilities to use per professional experience, starting with the most recent
+experience_count:
+  - 5
+  - 4
+  - 3
+# statement to inform the LLM how outputs should be formatted when generating responses
+list_form_clause: |
+  Do not return any other additional skills. 
+  Return only the list of skills with no additional context. 
+  Format should be a dashed list.
+
+json_form_clause: | 
+  - Output only the json elements specified in the above instructions.
+  - If input is given as an array, the output should be given as an array.
+  - Add no additional context.
+
+# prompts
+## resume generator prompts
+### skills extraction
+tech_skills_extraction_prompt: |
+  - Extract the technical skills required within this job description: {role_description} 
+  - Examples of technical skills I would like to capture: 
+  - The definition of technical skills in this context does not include languages and cloud tools per se, but what is to be done with those tools.
+  - Output should be a JSON array of strings.
+  {json_form_clause}
+
+tech_tools_extraction_prompt: |
+  - Extract all technology tools, e.g. coding languages, cloud development tools, and any specific development methodologies required within this job description: {role_description} 
+  - Output should be a JSON array of strings.
+  - Any skills within this list must be included: {key_skills}
+  {json_form_clause}
+
+soft_skills_extraction_prompt: |
+  - Extract the key soft skills from this job description: {role_description} 
+  - Output should be a JSON array of strings.
+  {json_form_clause}
+
+### skill selection
+select_all_experience_prompt: |
+  - from this list: {experience} 
+  - select any of the elements that are in any way related to these skills: {skills}  
+  - at least {experience_count} elements must be selected. 
+  {json_form_clause}
+
+select_most_relevant_experience_prompt: |
+  - from this list of experiences: {experience} 
+  - select the {experience_count} most relevant entries that correspond to these skills: {skills} 
+  {json_form_clause} 
+
+### extract hard skills
+extract_hard_skills_prompt: |
+  - ingest these inputs:
+    <experience>: {experience}
+    <skills>: {skills}          
+
+  - you will categorize the extracted skills into the following <category>:
+    1. Programming Languages and Libraries
+    2. Cloud, Open-Source, and Database
+    3. Data Science Techniques
+    4. Data Visualization and Analysis
+
+  - rules for inclusion/exclusion form each <category>:
+    1. Programming Languages and Libraries
+      - examples: Python, R, pandas, tensorflow
+    2. Cloud, Open-Source, and Database
+      - AWS, Azure, SQL, dbt, Snowflake, Docker, EC2, S3, Google Cloud Storage 
+    3. Data Science Techniques
+      - unsupervised learning, supervised learning, regression, classification, clustering
+      - do not include any coding libraries here, e.g. do not include pandas, numpy, or tensorflow
+    4. Data Visualization and Analysis
+      - include data visualization tools only
+      - examples: Tableau, PowerBI, ggplot, matplotlib, seaborn
+      - do not include any data science libraries that are not solely used for data visualization 
+
+  -Include only the following types of skills:
+    - Programming languages, frameworks, and libraries
+    - Software tools and platforms
+    - Statistical and mathematical methods
+    - Data processing techniques
+    - Machine learning algorithms
+    - Database technologies
+    - Technical protocols and standards
+
+  -Exclude all of the following:
+    - Soft skills (e.g., leadership, communication)
+    - Business terms and processes
+    - Project management terminology
+    - Team or interpersonal terms
+
+  - follow these rules when extracting and categorizing:
+    - the tools needed will always be within the "how" key:value pair 
+    - extract only explicitly mentioned technical terms
+    - group similar items next to each e.g. Python, pandas, sckilit-learn; AWS, EC2, S3
+    - when grouping similar items next to each, always put the parent items first
+      -examples:
+        - Python, pandas, scikit-learn (Pandas is the parent language, and the other elements are python libraries)
+        - AWS, EC2, S3 (AWS is the name of the service, provider, and EC2 and S3 are services provided by AWS)
+    - use the categories provided and only the categories provided
+    - verify each term appears in the source text
+
+  - process the elements points as follows:
+    - Read through all the bullet points carefully
+    - Identify and extract technical skills based on the inclusion criteria
+    - Categorize each skill into one of the provided categories
+    - Group related tools and technologies as specified
+    - Verify that each extracted term appears in the original text
+    
+  -select which items item to choose based on these criteria in order
+    - each item should only appear in 1 <category> 
+    - include all items that appear in <skills> and <experience>
+    - prioritize items that appear multiple times in <experience>
+    - de-emphasize items that appear only once in <experience> especially if they do not appear in <skills>
+    - if there are more than 10 items in a <category>, delete the items based on the above criteria
+    - verify that every itme used appears in <experience> at least once
+
+  - present your final output as a JSON object with the following structure:
+  {{
+      "Programming Languages and Libraries": "item1, item2, item3, item4",
+      "Cloud, Open-Source, and Database Tools": "item1, item2, item3, item4",
+      "Data Science Techniques": "item1, item2, item3",
+      "Data Visualization and Analysis": "item1, item2, item3",
+  }}
+
+  - ensure that:
+    - The output is valid JSON
+    - Categories are used as keys
+    - Values are single comma-separated strings
+    - There are no comments, notes, or additional text outside of the [] of the JSON array
+    - Provide only the JSON object as your final output, with no additional text or commentary.
+  """
+
+### format experience
+format_experience_prompt: |
+  - ingest these inputs:
+    <skills>: {skills}
+    <experience>: {experience}
+  
+  - for each experience in the <experience>, create a sentence using this structure:
+     - begin with a technical action verb derived from the "what" aspect
+     - include implementation details from the "how" aspect
+     - emphasize how items from <experience> that are also included in <skills>
+     - remove or de-emphasize how items from <experience> that are not present in <skills>
+     - state the business purpose or context
+     - end with the result
+  
+  - individual sentence output formatting instructions:
+     - use the CAR format for resume writing
+     - attempt make each sentence AST optimized
+         - but do not remove highly relevant content of elements with <skills> in order to reach AST compliance
+     - do not include titles or context prefixes for the array
+     - do not include the parenthesis from the how section; replace with natural language
+  
+  - for the collections of outputs as a whole
+     - avoid excessive repetition
+          - use a different action verb for each bullet point
+          - using different verbs when referring to tools used, e.g. don't say "using Python" in every bullet point
+     - if the same skill is used for multiple bullet points, make sure to include other how items to reduce over-repetition
+     - select the ordering of the sentences based on the relevance to the <skills>
+  
+  - output formatting
+     - output will be JSON
+     - output an array of string
+     - output one string for each input "experience"
+     - output no characters outside of the closing array bracket, i.e. []
+  
+  commence operation
+
+### generate role title
+generate_role_title_prompt: |
+  - return only one job title given the following list of experience: {experience}
