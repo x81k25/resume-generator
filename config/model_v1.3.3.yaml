@@ -9,8 +9,8 @@ verbose_prompt: false
 verbose_output: false
 # number of responsibilities to use per professional experience, starting with the most recent
 experience_count:
+  - 7
   - 5
-  - 4
   - 3
 # statement to inform the LLM how outputs should be formatted when generating responses
 list_form_clause: |
