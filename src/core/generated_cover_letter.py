@@ -20,7 +20,7 @@ log('loading params and data')
 
 env_vars = dotenv_values(".env")
 
-with open('config/model_v1.25.yaml', 'r') as file:
+with open('config/model_v1.3.2.yaml', 'r') as file:
     model_config: object = yaml.safe_load(file)
 
 with open('config/doc_format.yaml', 'r') as file:

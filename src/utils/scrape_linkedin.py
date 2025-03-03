@@ -266,7 +266,7 @@ class LinkedinScraper:
             if title_element:
                 role_title = title_element.get_text().strip()
                 self.job_description['role_title'] = role_title
-                log("successfully extracted role title: {role_title}")
+                log(f"successfully extracted role title: {role_title}")
             else:
                 raise Exception("could not find role title in HTML content")
 
@@ -279,12 +279,13 @@ class LinkedinScraper:
         The name parameter is a lowercase string with spaces replaced by hyphens.
         """
         log("generating name parameter...")
+
+        company_name = re.sub('[^a-zA-Z0-9]', '-', self.job_description['company_name']).lower()
+        role_title = re.sub('[^a-zA-Z0-9]', '-', self.job_description['role_title']).lower()
+
         if self.job_description['role_title'] and self.job_description['company_name']:
-            name_param = str(
-                self.job_description['role_title'].replace(' ', '-').replace(',', '').lower() +
-                '-' +
-                self.job_description['company_name'].replace(' ', '-').replace(',', '').lower()
-            )
+            name_param = str(company_name + "-" + role_title)
+            name_param = re.sub('-{2,}', '-', name_param)
             self.job_description['name_param'] = name_param
             log(f"successfully generated name parameter: {name_param}")
         else:
