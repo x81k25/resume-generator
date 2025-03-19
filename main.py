@@ -47,7 +47,7 @@ def generate_resume_from_flat(
     log('job description loaded successfully')
 
     # open job description file json
-    with open(full_jd_path, "r") as json_file:
+    with open(full_jd_path, "r", encoding='utf-8') as json_file:
         job_description = json.load(json_file)
 
     # create resume object
@@ -183,7 +183,7 @@ def generate_resume_content_only(
     log('job description loaded successfully')
 
     # open job description file json
-    with open(full_jd_path, "r") as json_file:
+    with open(full_jd_path, "r", encoding='utf-8') as json_file:
         job_description = json.load(json_file)
 
     # create resume object

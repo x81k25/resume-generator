@@ -38,7 +38,7 @@ class GeneratedResume:
         log("initializing GeneratedResume object")
         # ingested file parameters
         self.env_vars = dotenv_values(".env")
-        with open('config/model_v1.3.3.yaml', 'r') as file:
+        with open('config/model_v1.3.4.yaml', 'r') as file:
             self.model_config: object = yaml.safe_load(file)
         with open('config/doc_format.yaml', 'r') as file:
             self.doc_format = yaml.safe_load(file)

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.4]
+- switch model API to `claude-3-7-sonnet-latest` current `claude-3-7-sonnet-20250219`
+- changed json ingested to use 'utf-8' encoding
+
 ## [1.3.3]
 - added new functions to ensure that json outputs are properly formatted
 - added error handling if objects are not properly formatted

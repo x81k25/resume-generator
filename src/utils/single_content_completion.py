@@ -7,7 +7,7 @@ from src.utils.logger import log
 
 load_dotenv()
 
-with open('config/model_v1.3.3.yaml', 'r') as file:
+with open('config/model_v1.3.4.yaml', 'r') as file:
     model_config = yaml.safe_load(file)
 
 
