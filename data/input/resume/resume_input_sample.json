@@ -1,10 +1,11 @@
 {
   "personal_info": {
-    "first_name": "Michael",
-    "last_name": "Chen",
-    "email": "michael.chen@email.com",
-    "linkedin_url": "linkedin.com/in/michaelchen-data",
-    "phone_number": "(415) 555-0123"
+    "first_name": "Linus",
+    "last_name": "Torvalds",
+    "email": "Linus.Torvalds@email.com",
+    "linkedin_url": "https://www.linkedin.com/in/linus-torvalds-1a8a2915/",
+    "phone_number": "(555) 555-5555",
+    "github_url:": "https://github.com/torvalds"
   },
   "professional_experience": [
     {
