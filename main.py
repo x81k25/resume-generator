@@ -1,7 +1,8 @@
-# external package imports
+# standard library imports
 import argparse
 import json
-# internal package imports
+
+# custom/internal imports
 from src.core.generated_resume import GeneratedResume
 from src.core.generated_cover_letter import GeneratedCoverLetter
 from src.utils.logger import log
@@ -37,7 +38,10 @@ def generate_resume_from_flat(
     """
     generates a resume and cover letter from a job description flat file that is
         properly formatted in the template provided
+
     :param job_description_file: formated flat file job description path
+
+    :debug: job_description_file='jd.json'
     """
     log('generating resume and cover letter from flat files')
 
@@ -52,7 +56,6 @@ def generate_resume_from_flat(
 
     # create resume object
     generated_resume = GeneratedResume(
-
         job_description = job_description,
         role_title_overrides=role_title_overrides
     )

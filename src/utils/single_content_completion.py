@@ -1,8 +1,21 @@
+# internal library imports
+import logging
+import time
+
+# 3rd party imports
 import anthropic
 from anthropic import InternalServerError
 from dotenv import load_dotenv
-import time
 import yaml
+
+# custom/internal imports
+
+
+
+
+
+
+
 from src.utils.logger import log
 
 load_dotenv()
@@ -11,13 +24,18 @@ with open('config/model_v1.3.4.yaml', 'r') as file:
     model_config = yaml.safe_load(file)
 
 
+
+
+
+
 def complete_single_content(
     content,
-    max_tokens=1024
+    max_tokens=2048
 ):
     """
     Calls the Anthropic chat completion API and returns the text component of the
     API response. Includes retry logic for overloaded server errors.
+
     :param content: string to be passed to the API
     :param max_tokens: max tokens for allowed response
     :return: text component of the API response
@@ -43,7 +61,7 @@ def complete_single_content(
             duration = end_time - start_time
 
             print_output = (
-f"""query returned from Antrhopic API
+f"""query returned from Anthropic API
 API call duration:    {duration}
 input tokens:         {completion.usage.input_tokens}
 output tokens:        {completion.usage.output_tokens}
