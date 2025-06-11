@@ -1,22 +1,23 @@
-# external imports
+# internal libary imports
+import json
+import pathlib
+import os
+
+# third part imports
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from dotenv import dotenv_values
-import json
-import pathlib
-import os
+from loguru import logger
 import re
 import yaml
+
 # internal imports
 from src.utils.single_content_completion import complete_single_content
-from src.utils.logger import log
 
 # ------------------------------------------------------------------------------
 # load CoverLetter params and data
 # ------------------------------------------------------------------------------
-
-log('loading params and data')
 
 env_vars = dotenv_values(".env")
 
@@ -41,8 +42,6 @@ try:
 except Exception as e:
     print(f"Error reading files: {e}")
 
-log('params and data loaded')
-
 # ------------------------------------------------------------------------------
 # define primary class
 # ------------------------------------------------------------------------------
@@ -57,7 +56,7 @@ class GeneratedCoverLetter:
         model_config=model_config,
         doc_format=doc_format
     ):
-        log("initializing GeneratedCoverLetter object")
+        logger.info("initializing GeneratedCoverLetter object")
         # input parameters
         self.resume = resume
         self.env_vars = env_vars
@@ -68,7 +67,7 @@ class GeneratedCoverLetter:
         self.resume = resume
         # generated content to be defined via methods
         self.cover_letter_text = None
-        log("GeneratedCoverLetter object initialized")
+        logger.info("GeneratedCoverLetter object initialized")
 
 
 # ------------------------------------------------------------------------------
@@ -77,7 +76,7 @@ class GeneratedCoverLetter:
 
     def generate_cover_letter_content(self):
         """generates a cover letter using the OpenAI API"""
-        log("generating cover letter content")
+        logger.info("generating cover letter content")
 
         # read in user generated cover letter content if any
         cl_content_path = self.env_vars['COVER_LETTER_CONTENT_PATH'] + self.job_description['company_name'] + '.txt'
@@ -123,7 +122,7 @@ class GeneratedCoverLetter:
                 "6. Limit the output to 4 paragraphs."
             )
 
-        log("cover letter content generated")
+        logger.info("cover letter content generated")
 
 
     def write_cover_letter(self):
@@ -131,7 +130,7 @@ class GeneratedCoverLetter:
         takes the cover_letter_text string from the cover_letter_gen function and
         writes it to a .docx file at the specified path
         """
-        log("writing cover letter to docx file")
+        logger.info("writing cover letter to docx file")
 
         # open and format doc
         cover_letter_doc = Document()
@@ -204,7 +203,7 @@ class GeneratedCoverLetter:
         cover_letter_output_path = re.sub(r'\s+', '', cover_letter_output_path)
         cover_letter_doc.save(cover_letter_output_path)
 
-        log("cover letter saved to " + cover_letter_output_path)
+        logger.info("cover letter saved to " + cover_letter_output_path)
 
 # ------------------------------------------------------------------------------
 # primary cover letter generation method
@@ -215,7 +214,7 @@ class GeneratedCoverLetter:
         master cover letter generation function that generates all content and
         write the file to the generated path
         """
-        log("initiating cover letter generation pipeline")
+        logger.info("initiating cover letter generation pipeline")
         self.generate_cover_letter_content()
         self.write_cover_letter()
 

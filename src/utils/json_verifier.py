@@ -1,5 +1,3 @@
-
-
 def is_array_of_strings(data):
 	# First check if it's a list
 	if not isinstance(data, list):

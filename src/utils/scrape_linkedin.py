@@ -1,15 +1,18 @@
+# Standard library
+import json
+import random
+import re
+from time import sleep
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse, parse_qs
+
+# Third party
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
-import json
-import re
+from loguru import logger
 import requests
-import random
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from time import sleep
-from urllib.parse import urlparse, parse_qs
-from typing import Any, Dict, List, Optional
-from src.utils.logger import log
 
 # ------------------------------------------------------------------------------
 # class object definition
@@ -21,7 +24,7 @@ class LinkedinScraper:
     and anti-bot detection measures.
     """
     def __init__(self, url):
-        log("initializing LinkedinScraper...")
+        logger.info("initializing LinkedinScraper...")
         # input attributes
         self.full_url = url
         # attributes created during initialization
@@ -39,7 +42,7 @@ class LinkedinScraper:
             'key_skills': [],
             'company_sectors': []
         }
-        log("...LinkedinScraper initialized")
+        logger.info("...LinkedinScraper initialized")
 
 # ------------------------------------------------------------------------------
 # static helper methods
@@ -56,7 +59,7 @@ class LinkedinScraper:
         Returns:
             str: Cleaned URL containing only the base URL and job ID
         """
-        log("cleaning linkedin job url...")
+        logger.info("cleaning linkedin job url...")
 
         # Parse the URL
         parsed = urlparse(full_url)
@@ -75,7 +78,7 @@ class LinkedinScraper:
 
                 # Construct the clean URL
                 clean_url = f"https://www.linkedin.com/jobs/view/{job_id}"
-                log(f"cleaned linkedin job url: {clean_url}")
+                logger.info(f"cleaned linkedin job url: {clean_url}")
                 return clean_url
 
         # If we can't find a proper job ID, try to extract it from the original path
@@ -83,7 +86,7 @@ class LinkedinScraper:
             # Look for a numeric ID
             if part.isdigit():
                 clean_url = f"https://www.linkedin.com/jobs/view/{part}"
-                log(f"cleaned linkedin job url: {clean_url}")
+                logger.info(f"cleaned linkedin job url: {clean_url}")
                 return clean_url
 
         raise ValueError("Could not find valid job ID in URL")
@@ -129,7 +132,7 @@ class LinkedinScraper:
         """
         Enhanced webpage fetching with better error handling and anti-detection measures
         """
-        log("attempting to fetch webpage...")
+        logger.info("attempting to fetch webpage...")
 
         if url:
             self.url = url
@@ -158,7 +161,7 @@ class LinkedinScraper:
                 if response.status_code == 429:
                     retry_after = int(
                         response.headers.get('Retry-After', base_wait_time * 2))
-                    log(f"Rate limited. Waiting {retry_after} seconds...")
+                    logger.info(f"Rate limited. Waiting {retry_after} seconds...")
                     sleep(retry_after)
                     retry_count += 1
                     continue
@@ -183,11 +186,11 @@ class LinkedinScraper:
                     not self.soup.find('h1', {'class': 'topcard__title'}):
                     raise Exception("Job listing content not found in response")
 
-                log("...fetch successful")
+                logger.info("...fetch successful")
                 return
 
             except requests.exceptions.RequestException as e:
-                log(f"Error occurred: {str(e)}")
+                logger.info(f"Error occurred: {str(e)}")
                 retry_count += 1
 
                 if retry_count == max_retries:
@@ -210,7 +213,7 @@ class LinkedinScraper:
             Exception: If company name cannot be found in the HTML content
         """
         try:
-            log("extracting company name...")
+            logger.info("extracting company name...")
             # Check if we have HTML content
             if not self.soup:
                 raise Exception(
@@ -230,7 +233,7 @@ class LinkedinScraper:
             if company_element:
                 company_name = company_element.get_text().strip()
                 self.job_description['company_name'] = company_name
-                log(f"...successfully extracted company name: {company_name}")
+                logger.info(f"...successfully extracted company name: {company_name}")
             else:
                 raise Exception("Could not find company name in HTML content")
 
@@ -247,7 +250,7 @@ class LinkedinScraper:
             Exception: If role title cannot be found in the HTML content
         """
         try:
-            log("extracting role title...")
+            logger.info("extracting role title...")
             # Check if we have HTML content
             if not self.soup:
                 raise Exception(
@@ -266,7 +269,7 @@ class LinkedinScraper:
             if title_element:
                 role_title = title_element.get_text().strip()
                 self.job_description['role_title'] = role_title
-                log(f"successfully extracted role title: {role_title}")
+                logger.info(f"successfully extracted role title: {role_title}")
             else:
                 raise Exception("could not find role title in HTML content")
 
@@ -278,7 +281,7 @@ class LinkedinScraper:
         Generate a name parameter for the job description.
         The name parameter is a lowercase string with spaces replaced by hyphens.
         """
-        log("generating name parameter...")
+        logger.info("generating name parameter...")
 
         company_name = re.sub('[^a-zA-Z0-9]', '-', self.job_description['company_name']).lower()
         role_title = re.sub('[^a-zA-Z0-9]', '-', self.job_description['role_title']).lower()
@@ -287,7 +290,7 @@ class LinkedinScraper:
             name_param = str(company_name + "-" + role_title)
             name_param = re.sub('-{2,}', '-', name_param)
             self.job_description['name_param'] = name_param
-            log(f"successfully generated name parameter: {name_param}")
+            logger.info(f"successfully generated name parameter: {name_param}")
         else:
             raise Exception("cannot generate name parameter; missing role title or company name")
 
@@ -334,7 +337,7 @@ class LinkedinScraper:
                                       role_description)
 
             self.job_description['role_description'] = role_description
-            log("successfully extracted role description")
+            logger.info("successfully extracted role description")
 
         except Exception as e:
             raise Exception(
@@ -350,13 +353,13 @@ class LinkedinScraper:
         Full pipeline function to scrape the job description
         :return: Dictionary with job description details
         """
-        log("initializing full scrape of linkedin url...")
+        logger.info("initializing full scrape of linkedin url...")
         self._fetch_webpage()
         self._extract_company_name()
         self._extract_role_title()
         self._generate_name_param()
         self._extract_role_description()
-        log("...scrape complete")
+        logger.info("...scrape complete")
 
 
     def write_jd(

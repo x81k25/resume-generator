@@ -6,19 +6,15 @@ import pickle
 import re
 
 # Third-party imports
-import ast
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt, Inches, RGBColor
 from dotenv import dotenv_values
+from loguru import logger
 import yaml
 
 # internal imports
-from src.utils.single_content_completion import complete_single_content
-from src.utils.logger import log
-from src.utils.json_verifier import is_array_of_strings
-from src.utils.json_verifier import is_array_of_objects
-from src.utils.json_verifier import is_object
+import src.utils as utils
 
 # ------------------------------------------------------------------------------
 # define primary class
@@ -37,10 +33,10 @@ class GeneratedResume:
         role_title_overrides=None,
         model_config=None,
     ):
-        log("initializing GeneratedResume object")
+        logger.info("initializing GeneratedResume object")
         # ingested file parameters
         self.env_vars = dotenv_values(".env")
-        with open('config/model_v1.3.4.yaml', 'r') as file:
+        with open('config/model_v1.3.5.yaml', 'r') as file:
             self.model_config: object = yaml.safe_load(file)
         with open('config/doc_format.yaml', 'r') as file:
             self.doc_format = yaml.safe_load(file)
@@ -58,7 +54,7 @@ class GeneratedResume:
         self.gen_tech_skills = None
         self.professional_experience_count = len(self.professional_experience_input)
         self.professional_experience_output = []  # will hold the final output to be given to resume writer
-        log("GeneratedResume object initialized")
+        logger.info("GeneratedResume object initialized")
 
     def _set_gen_resume_components(self):
         try:
@@ -128,109 +124,122 @@ class GeneratedResume:
         Extract the technical skills required within this job description
         :write: self.gen_tech_skills
         """
-        log("extracting tech skills")
+        logger.info("extracting tech skills")
 
         # determine if role_description is populated
         if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
             raise ValueError("Error: role_description is not populated")
 
-        # extract prompt from config and insert prompt inputs
-        prompt = self.model_config['tech_skills_extraction_prompt']
-        prompt_inputs = {
-            "role_description": self.job_description['role_description'],
-            "json_form_clause":self.model_config['json_form_clause']
+        # build prompt object
+        prompt_object = {
+            "prompt": self.model_config["tech_skills_extraction_prompt"],
+            "prompt_variables": {
+                "role_description": self.job_description['role_description']
+            }
         }
-        prompt = prompt.format_map(prompt_inputs)
 
-        gen_tech_skills = complete_single_content(prompt)
-
-        # convert the query result to an object, and raise error if it fails
         try:
-            if not is_array_of_strings(ast.literal_eval(gen_tech_skills)):
+            result = utils.extract_with_tool(
+                prompt_object=prompt_object,
+                tool=self.model_config["tech_skills_extraction_tool"]
+            )
+
+            # Extract skills array from tool response
+            self.gen_tech_skills = result["skills"]
+
+            # Validate it's an array of strings
+            if not utils.is_array_of_strings(self.gen_tech_skills):
                 raise ValueError(
                     "Error: _extract_tech_skills output is not array of strings"
-                    f"Output: {gen_tech_skills}"
+                    f"Output: {self.gen_tech_skills}"
                 )
-            self.gen_tech_skills = ast.literal_eval(gen_tech_skills)
+
         except Exception as e:
             raise ValueError(
-                "Error: _extract_tech_skills output not valid json object" +
-                f"Error: {e} " +
-                f"Output: {gen_tech_skills}"
+                "Error: _extract_tech_skills failed " +
+                f"Error: {e}"
             )
 
 
     def _extract_tech_tools(self):
-        """
-        Extract the technical tools required within this job description
-        :write: self.gen_tech_tools
-        """
-        log("extracting tech tools")
+       """
+       Extract the technical tools required within this job description
+       :write: self.gen_tech_tools
+       """
+       logger.info("extracting tech tools")
 
-        # determine if role_description is populated
-        if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
-            raise ValueError("Error: role_description is not populated")
+       # determine if role_description is populated
+       if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
+           raise ValueError("Error: role_description is not populated")
 
-        prompt =self.model_config['tech_tools_extraction_prompt']
-        prompt_inputs = {
-            "role_description": self.job_description['role_description'],
-            "key_skills": self.job_description['key_skills'],
-            "json_form_clause":self.model_config['json_form_clause']
-        }
-        prompt = prompt.format_map(prompt_inputs)
+       # build prompt object
+       prompt_object = {
+            "prompt": self.model_config["tech_tools_extraction_prompt"],
+            "prompt_variables": {
+                "role_description": self.job_description['role_description'],
+                "key_skills": self.job_description['key_skills']
+            }
+       }
 
-        gen_tech_tools = complete_single_content(prompt)
+       try:
+           result = utils.extract_with_tool(
+               prompt_object=prompt_object,
+               tool=self.model_config["tech_tools_extraction_tool"]
+           )
 
-        # convert the query result to an object, and raise error if it fails
-        try:
-            if not is_array_of_strings(ast.literal_eval(gen_tech_tools)):
-                raise ValueError(
-                    "Error: _extract_tech_tools output is not array of strings"
-                    f"Output: {gen_tech_tools}"
-                )
-            self.gen_tech_tools = ast.literal_eval(gen_tech_tools)
-        except Exception as e:
-            raise ValueError(
-                "Error: _extract_tech_tools output not valid json object" +
-                f"Error: {e} " +
-                f"Output: {gen_tech_tools}"
-            )
+           self.gen_tech_tools = result["tools"]
+
+           if not utils.is_array_of_strings(self.gen_tech_tools):
+               raise ValueError(
+                   "Error: _extract_tech_tools output is not array of strings"
+                   f"Output: {self.gen_tech_tools}"
+               )
+
+       except Exception as e:
+           raise ValueError(
+               "Error: _extract_tech_tools failed " +
+               f"Error: {e}"
+           )
 
 
     def _extract_soft_skills(self):
-        """
-        Extract the soft skills required within this job description
-        :write: self.gen_soft_skills
-        """
-        log("extracting soft skills")
+       """
+       Extract the soft skills required within this job description
+       :write: self.gen_soft_skills
+       """
+       logger.info("extracting soft skills")
 
-        # determine if role_description is populated
-        if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
-            raise ValueError("Error: role_description is not populated")
+       # determine if role_description is populated
+       if self.job_description['role_description'] is None or self.job_description['role_description'] == "":
+           raise ValueError("Error: role_description is not populated")
 
-        prompt =self.model_config['soft_skills_extraction_prompt']
-        prompt_inputs = {
-            "role_description": self.job_description['role_description'],
-            "json_form_clause":self.model_config['json_form_clause']
-        }
-        prompt = prompt.format_map(prompt_inputs)
+       # build prompt object
+       prompt_object = {
+            "prompt": self.model_config["soft_skills_extraction_prompt"],
+            "prompt_variables": {
+                "role_description": self.job_description['role_description']
+            }
+       }
 
-        gen_soft_skills = complete_single_content(prompt)
+       try:
+           result = utils.extract_with_tool(
+               prompt_object=prompt_object,
+               tool=self.model_config["soft_skills_extraction_tool"]
+           )
 
-        # convert the query result to an object, and raise error if it fails
-        try:
-            if not is_array_of_strings(ast.literal_eval(gen_soft_skills)):
-                raise ValueError(
-                    "Error: _extract_soft_skills output is not array of strings"
-                    f"Output: {gen_soft_skills}"
-                )
-            self.gen_soft_skills = ast.literal_eval(gen_soft_skills)
-        except Exception as e:
-            raise ValueError(
-                "Error: _extract_soft_skills output is not valid json object" +
-                f"Error: {e} " +
-                f"Output: {gen_soft_skills}"
-            )
+           self.gen_soft_skills = result["skills"]
+
+           if not utils.is_array_of_strings(self.gen_soft_skills):
+               raise ValueError(
+                   "Error: _extract_soft_skills output is not array of strings"
+                   f"Output: {self.gen_soft_skills}"
+               )
+
+       except Exception as e:
+           raise ValueError(
+               "Error: _extract_soft_skills failed " +
+               f"Error: {e}"
+           )
 
 
     def _select_all_relevant_experience(self, i):
@@ -239,7 +248,7 @@ class GeneratedResume:
         :param i: index of the professional experience input
         :write: self.professional_experience_liminal[i]['all_relevant_experience']
         """
-        log(f"selecting all relevant experience for employer {i}")
+        logger.info(f"selecting all relevant experience for employer {i}")
 
         # ensure all required data points are populated
         if self.professional_experience_input[i]['experience'] is None or self.professional_experience_input[i]['experience'] == "":
@@ -251,32 +260,36 @@ class GeneratedResume:
         if self.gen_soft_skills is None or self.gen_soft_skills == "":
             raise ValueError("Error: soft skills not populated")
 
-        prompt =self.model_config['select_all_experience_prompt']
-        prompt_inputs = {
-            "experience": self.professional_experience_input[i]['experience'],
-            "skills": self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills,
-            "experience_count": self.model_config['experience_count'][i],
-            "json_form_clause":self.model_config['json_form_clause']
+        # build prompt object
+        prompt_object = {
+            "prompt": self.model_config["select_all_experience_prompt"],
+            "prompt_variables": {
+                "experience": self.professional_experience_input[i]['experience'],
+                "skills": self.gen_tech_skills + self.gen_tech_tools,
+                "experience_count": self.model_config['experience_count'][i]
+            }
         }
-        prompt = prompt.format_map(prompt_inputs)
 
-        # run query
-        all_relevant_experience = complete_single_content(prompt)
-
-        # convert the query to an object, and raise error if it fails
         try:
-            if not is_array_of_objects(ast.literal_eval(all_relevant_experience)):
+            result = utils.extract_with_tool(
+                prompt_object=prompt_object,
+                tool=self.model_config["select_all_experience_tool"]
+            )
+
+            # Extract the selected experience from tool response
+            self.professional_experience_liminal[i]['all_relevant_experience'] = result["selected_experience"]
+
+            # Validate it's an array of objects
+            if not utils.is_array_of_objects(self.professional_experience_liminal[i]['all_relevant_experience']):
                 raise ValueError(
                     "Error: _select_all_relevant_experience output is not array of objects"
-                    f"Output: {all_relevant_experience}"
+                    f"Output: {self.professional_experience_liminal[i]['all_relevant_experience']}"
                 )
-            self.professional_experience_liminal[i]['all_relevant_experience'] = \
-                ast.literal_eval(all_relevant_experience)
+
         except Exception as e:
             raise ValueError(
-                "Error: _select_all_relevant_experiences output is not valid json object" +
-                f"Error: {e} " +
-                f"Output: {all_relevant_experience}"
+                "Error: _select_all_relevant_experience failed " +
+                f"Error: {e}"
             )
 
 
@@ -286,184 +299,232 @@ class GeneratedResume:
         :param i: index of the professional experience input
         :write: self.professional_experience_liminal[i]['most_relevant_experience']
         """
-        log(f"selecting most relevant experience for employer {i}")
+        logger.info(f"selecting most relevant experience for employer {i}")
 
         # ensure the exists of all required data points
         if self.professional_experience_liminal[i]['all_relevant_experience'] is None or self.professional_experience_liminal[i]['all_relevant_experience'] == "":
             raise ValueError("Error: all_relevant_experience not populated")
 
-        prompt =self.model_config['select_most_relevant_experience_prompt']
-        prompt_inputs = {
-            "experience": self.professional_experience_input[i]['experience'],
-            "skills": self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills,
-            "experience_count": self.model_config['experience_count'][i],
-            "json_form_clause":self.model_config['json_form_clause']
+        # build prompt object
+        prompt_object = {
+            "prompt": self.model_config["select_most_relevant_experience_prompt"],
+            "prompt_variables": {
+                "experience": self.professional_experience_input[i]['experience'],
+                "experience_count": self.model_config['experience_count'][i],
+                "skills": self.gen_tech_skills + self.gen_tech_tools,
+            }
         }
-        prompt = prompt.format_map(prompt_inputs)
 
-        # execute query
-        most_relevant_experience = complete_single_content(prompt)
-
-        # convert the query to an object, and raise error if it fails
         try:
-            if not is_array_of_objects(ast.literal_eval(most_relevant_experience)):
+            result = utils.extract_with_tool(
+                prompt_object=prompt_object,
+                tool=self.model_config["select_most_relevant_experience_tool"]
+            )
+
+            # Extract the selected experience from tool response
+            self.professional_experience_liminal[i]['most_relevant_experience'] = result["selected_experience"]
+
+            # Validate it's an array of objects
+            if not utils.is_array_of_objects(self.professional_experience_liminal[i]['most_relevant_experience']):
                 raise ValueError(
                     "Error: _select_most_relevant_experience output is not array of objects"
-                    f"Output: {most_relevant_experience}"
+                    f"Output: {self.professional_experience_liminal[i]['most_relevant_experience']}"
                 )
-            self.professional_experience_liminal[i][
-               'most_relevant_experience'] = \
-               ast.literal_eval(most_relevant_experience)
+
         except Exception as e:
             raise ValueError(
-               "Error: _select_most_relevant_experience output not valid json object" +
-               f"Error: {e} " +
-               f"Output: {most_relevant_experience}"
+                "Error: _select_most_relevant_experience failed " +
+                f"Error: {e}"
             )
 
 
     def _verify_experience(self, i):
         """
         Verify that the experience is contained with the original resume.json file
-        :return:
+        :param i: index of the professional experience input
+        :write: self.professional_experience_liminal[i]['verified_experience']
         """
-        log(f"verifying experience for employer {i}")
+        logger.info(f"verifying experience for employer {i}")
+
+        # build prompt object
+        prompt_object = {
+            "prompt": self.model_config["verify_experience_prompt"],
+            "prompt_variables": {
+                "original_experience": self.professional_experience_input[i]['experience'],
+                "extracted_experience": self.professional_experience_liminal[i]['most_relevant_experience'],
+            }
+        }
 
         # ensure the exists of all required data points
         if self.professional_experience_liminal[i]['most_relevant_experience'] is None or \
             self.professional_experience_liminal[i]['most_relevant_experience'] == "":
             raise ValueError("Error: most_relevant_experience not populated")
 
-        prompt =self.model_config['verify_experience_prompt']
-        prompt_inputs = {
-            "original_experience": self.professional_experience_input[i]['experience'],
-            "extracted_experience": self.professional_experience_liminal[i]['most_relevant_experience'],
-            "skills": self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills,
-            "experience_count": self.model_config['experience_count'][i],
-            "json_form_clause":self.model_config['json_form_clause']
-        }
-        prompt = prompt.format_map(prompt_inputs)
-
-        # execute query
-        verified_experience = complete_single_content(prompt)
-
-        # convert the query to an object, and raise error if it fails
         try:
-            if not is_array_of_objects(ast.literal_eval(verified_experience)):
+            result = utils.extract_with_tool(
+                prompt_object=prompt_object,
+                tool=self.model_config["verify_experience_tool"]
+            )
+
+            # Extract the verified experience from tool response
+            self.professional_experience_liminal[i]['verified_experience'] = result["verified_experience"]
+
+            # Validate it's an array of objects
+            if not utils.is_array_of_objects(self.professional_experience_liminal[i]['verified_experience']):
                 raise ValueError(
                     "Error: _verify_experience output is not an array of objects"
-                    f"Output: {verified_experience}"
+                    f"Output: {self.professional_experience_liminal[i]['verified_experience']}"
                 )
-            self.professional_experience_liminal[i][
-               'verified_experience'] = \
-               ast.literal_eval(verified_experience)
+
         except Exception as e:
             raise ValueError(
-               "Error: _verify_experience output is a valid JSON object" +
-               f"Error: {e} " +
-               f"Output: {verified_experience}"
+                "Error: _verify_experience failed " +
+                f"Error: {e}"
             )
 
 
     def _extract_hard_skills(self):
-        # ensure the exists of all required data points
-        log("extracting hard skills")
+        """
+        Extract hard skills from all verified experiences
+        :write: updates self.hard_skills
+        """
+        logger.info("extracting hard skills")
 
+        # ensure the exists of all required data points
         for i in range(self.professional_experience_count):
             experience_liminal = self.professional_experience_liminal[i]
             # Check if key exists first, then check its value
             if 'verified_experience' not in experience_liminal or \
                 experience_liminal.get('verified_experience') is None or \
                 experience_liminal.get('verified_experience') == "":
-                raise ValueError(
-                    "Error: verified_experience not populated")
+                raise ValueError("Error: verified_experience not populated")
 
+        # Aggregate all experience
         all_experience = []
-
         for i in range(self.professional_experience_count):
-            all_experience += self.professional_experience_liminal[i][
-                                            'verified_experience']
+            all_experience += self.professional_experience_liminal[i]['verified_experience']
 
-        prompt =self.model_config['extract_hard_skills_prompt']
-        prompt_inputs = {
-            "experience": all_experience,
-            "skills": self.gen_tech_skills + self.gen_tech_tools,
+        # build prompt object
+        prompt_object = {
+            "prompt": self.model_config["extract_hard_skills_prompt"],
+            "prompt_variables": {
+                "experience": all_experience,
+                "skills": self.gen_tech_skills + self.gen_tech_tools
+            }
         }
-        prompt = prompt.format_map(prompt_inputs)
-
-        hard_skills = complete_single_content(prompt)
 
         try:
-            if not is_object(ast.literal_eval(hard_skills)):
+            result = utils.extract_with_tool(
+                prompt_object=prompt_object,
+                tool=self.model_config["extract_hard_skills_tool"]
+
+            )
+
+            # Convert the tool response to the expected format
+            extracted_skills = {
+                "Programming Languages and Libraries": result["programming_languages_and_libraries"],
+                "Cloud, Open-Source, and Database": result["cloud_open_source_and_database_tools"],
+                "Data Science Techniques": result["data_science_techniques"],
+                "Data Visualization and Analysis": result["data_visualization_and_analysis"]
+            }
+
+            # Validate it's an object
+            if not utils.is_object(extracted_skills):
                 raise ValueError(
-                    "Error: _extract_hard_skills output not an object" +
-                    f"Output: {hard_skills}"
+                    "Error: _extract_hard_skills output not an object"
+                    f"Output: {extracted_skills}"
                 )
-            hard_skills = ast.literal_eval(hard_skills)
-            self.hard_skills.update(hard_skills)
+
+            self.hard_skills.update(extracted_skills)
+
         except Exception as e:
             raise ValueError(
-                "Error: _extract_hard_skills output not valid json object" +
-                f"Error: {e} " +
-                f"Output: {hard_skills}"
+                "Error: _extract_hard_skills failed " +
+                f"Error: {e}"
             )
 
 
     def _format_experience(self, i):
-        log(f"formatting experience for employer {i}")
+        """
+        Format the verified experience into resume statements
+        :param i: index of the professional experience input
+        :write: self.professional_experience_liminal[i]['formatted_experience']
+        """
+        logger.info(f"formatting experience for employer {i}")
 
         # ensure the exists of all required data points
         experience_liminal = self.professional_experience_liminal[i]
+
+        # build prompt object
+        prompt_object = {
+            "prompt": self.model_config["format_experience_prompt"],
+            "prompt_variables": {
+                "experience": self.professional_experience_liminal[i]['verified_experience'],
+                "skills": self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills,
+                "character_count": self.model_config['character_count'][i]
+            }
+        }
+
         # Check if key exists first, then check its value
         if 'verified_experience' not in experience_liminal or \
             experience_liminal.get('verified_experience') is None or \
             experience_liminal.get('verified_experience') == "":
-            raise ValueError(
-                "Error: verified_experience not populated")
+            raise ValueError("Error: verified_experience not populated")
 
-        prompt =self.model_config['format_experience_prompt']
-        prompt_inputs = {
-            "experience": self.professional_experience_liminal[i]['verified_experience'],
-            "skills": self.gen_tech_skills + self.gen_tech_tools + self.gen_soft_skills
-        }
-        prompt = prompt.format_map(prompt_inputs)
-
-        # execute query
-        formatted_experience = complete_single_content(prompt)
-
-        # convert the query to an object, and raise error if it fails
         try:
-            if not is_array_of_strings(ast.literal_eval(formatted_experience)):
+            result = utils.extract_with_tool(
+                prompt_object=prompt_object,
+                tool=self.model_config["format_experience_tool"]
+            )
+
+            # Extract the formatted statements from tool response
+            self.professional_experience_liminal[i]['formatted_experience'] = result["formatted_statements"]
+
+            # Validate it's an array of strings
+            if not utils.is_array_of_strings(self.professional_experience_liminal[i]['formatted_experience']):
                 raise ValueError(
-                    "Error: _format_experience output is not an array of strings" +
-                    f"Output: {formatted_experience}"
+                    "Error: _format_experience output is not an array of strings"
+                    f"Output: {self.professional_experience_liminal[i]['formatted_experience']}"
                 )
-            self.professional_experience_liminal[i]['formatted_experience'] = \
-                ast.literal_eval(formatted_experience)
+
         except Exception as e:
             raise ValueError(
-                "Error: _format_experience output is not a valid json object" +
-                f"Error: {e} " +
-                f"Output: {formatted_experience}"
+                "Error: _format_experience failed " +
+                f"Error: {e}"
             )
 
 
     def _generate_role_title(self, i):
         """
-		calls the OpenAI chat completion API and returns the title of the role
-		:write: self.professional_experience_liminal[i]['role_title']
-		"""
-        log(f"generating role title for employer {i}")
+        calls the OpenAI chat completion API and returns the title of the role
+        :param i: index of the professional experience input
+        :write: self.professional_experience_liminal[i]['role_title']
+        """
+        logger.info(f"generating role title for employer {i}")
 
-        prompt =self.model_config['generate_role_title_prompt']
-        prompt_inputs = {
-            "experience": self.professional_experience_liminal[i]['formatted_experience']
+    # build prompt object
+        prompt_object = {
+            "prompt": self.model_config["generate_role_title_prompt"],
+            "prompt_variables": {
+                "experience": self.professional_experience_liminal[i]['formatted_experience']
+            }
         }
-        prompt = prompt.format_map(prompt_inputs)
 
-        role_title = complete_single_content(prompt)
+        try:
+            result = utils.extract_with_tool(
+                prompt_object=prompt_object,
+                tool=self.model_config["generate_role_title_tool"]
 
-        self.professional_experience_liminal[i]["role_title"] = role_title
+            )
+
+            # Extract the job title from tool response
+            self.professional_experience_liminal[i]["role_title"] = result["job_title"]
+
+        except Exception as e:
+            raise ValueError(
+                "Error: _generate_role_title failed " +
+                f"Error: {e}"
+            )
 
 
 # ------------------------------------------------------------------------------
@@ -478,7 +539,7 @@ class GeneratedResume:
          Generates a resume based on a job description and a list of experiences
          :return:
          """
-        log("generating resume content")
+        logger.info("generating resume content")
 
         # extract key skills required for the role
         with ThreadPoolExecutor() as executor:
@@ -534,10 +595,10 @@ class GeneratedResume:
                 try:
                     future.result()
                 except Exception as e:
-                    log(f"Error in verification step for employer {i}: {e}")
+                    logger.info(f"Error in verification step for employer {i}: {e}")
                     raise
 
-        log("Verification process complete")
+        logger.info("Verification process complete")
 
         # with ThreadPoolExecutor() as executor:
         #     indices = range(self.professional_experience_count)
@@ -554,7 +615,7 @@ class GeneratedResume:
         #         try:
         #             future.result()
         #         except Exception as e:
-        #             log(f"Error in verification step for employer {i}: {e}")
+        #             logger.info(f"Error in verification step for employer {i}: {e}")
         #             raise
 
         # extract hard skills and format experiences
@@ -575,7 +636,7 @@ class GeneratedResume:
                 try:
                     future.result()
                 except Exception as e:
-                    log(f"Error in formatting/hard skills extraction: {e}")
+                    logger.error(f"Error in formatting/hard skills extraction: {e}")
                     success = False
 
         if not success:
@@ -606,7 +667,7 @@ class GeneratedResume:
                  self.professional_experience_liminal[i]['role_title'] + "\n"
              )
 
-        log(string_output.rstrip("\n"))
+        logger.info(string_output.rstrip("\n"))
 
         # assemble the final output resume
         for i in range(len(self.professional_experience_liminal)):
@@ -618,12 +679,12 @@ class GeneratedResume:
              self.professional_experience_output[i]['experience'] = self.professional_experience_liminal[i]['formatted_experience']
 
         # inform user run was successful
-        log('professional_experience output stored in GeneratedResume.professional_experience_output')
+        logger.info('professional_experience output stored in GeneratedResume.professional_experience_output')
 
 
     def write_resume(self):
         # use still working field to determine display of pe0 employment_end
-        log("writing resume")
+        logger.info("writing resume")
 
         if self.doc_format['currently_employed']:
             self.professional_experience_output[0]['employment_end'] = ""
@@ -820,7 +881,7 @@ class GeneratedResume:
         resume_output_path = re.sub(r'\s+', '', resume_output_path)
         resume_doc.save(resume_output_path)
 
-        log('generated resume successfully written to: "' + resume_output_path + '"')
+        logger.info('generated resume successfully written to: "' + resume_output_path + '"')
 
 
     # def check_qualifications(self):
@@ -828,7 +889,7 @@ class GeneratedResume:
     #     This function uses the OpenAI API to compare the qualifications of a job applicant to a job description.
     #     :return:
     #     """
-    #     log("checking qualifications")
+    #     logger.info("checking qualifications")
     #     # instantiate client
     #
     #     # call API to assess the qualifications within the resume
@@ -861,7 +922,7 @@ class GeneratedResume:
     #         f"output tokens:        {completion.usage.completion_tokens}\n" +
     #         f"content:              {completion.choices[0].message.content}"
     #     )
-    #     log(string_output)
+    #     logger.info(string_output)
 
 # ------------------------------------------------------------------------------
 # primary function
@@ -880,7 +941,7 @@ class GeneratedResume:
         """
         pickle the resume object for later use
         """
-        log("pickling resume object")
+        logger.info("pickling resume object")
         resume_pickle_path = (
             f"""
             {self.env_vars['COVER_LETTER_OUTPUT_PATH']}
@@ -895,7 +956,7 @@ class GeneratedResume:
             # noinspection PyTypeChecker
             pickle.dump(self, output)
 
-        log('resume object successfully pickled to: "' + resume_pickle_path + '"')
+        logger.info('resume object successfully pickled to: "' + resume_pickle_path + '"')
 
 # ------------------------------------------------------------------------------
 # end of generated_resume.py

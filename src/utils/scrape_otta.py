@@ -1,9 +1,12 @@
-from bs4 import BeautifulSoup
+# Standard library
 import json
 import re
-import requests
 from typing import Any, Dict, List, Optional
-from src.utils.logger import log
+
+# Third party
+from bs4 import BeautifulSoup
+from loguru import logger
+import requests
 
 # ------------------------------------------------------------------------------
 # class object definition
@@ -15,7 +18,7 @@ class OttaScraper:
     :param url: URL of the job description
     """
     def __init__(self, url):
-        log('initializing OttaScraper')
+        logger.info('initializing OttaScraper')
         self.url = url
         self.html_content = None
         self.soup = None
@@ -27,7 +30,7 @@ class OttaScraper:
             'key_skills': [],
             'company_sectors': []
         }
-        log('OttaScraper initialized')
+        logger.info('OttaScraper initialized')
 
 # ------------------------------------------------------------------------------
 # helper methods
@@ -39,12 +42,12 @@ class OttaScraper:
         :return: HTML content of the webpage
         """
         try:
-            log('attempting to fetch webpage content...')
+            logger.info('attempting to fetch webpage content...')
             response = requests.get(self.url)
             response.raise_for_status()  # Check if the request was successful
             self.html_content = response.text
             self.soup = BeautifulSoup(self.html_content, 'html.parser')
-            log('...webpage content fetched successfully')
+            logger.info('...webpage content fetched successfully')
         except Exception as e:
             raise Exception(f'Error fetching webpage content: {e}')
 
@@ -66,7 +69,7 @@ class OttaScraper:
                         # Get the full text and remove the company name to get the job title
                         full_text = h1_element.text.strip()
                         self.job_description['role_title'] = full_text.replace(self.job_description['company_name'], '').replace(',','').strip()
-                        log('role title and company name extracted successfully')
+                        logger.info('role title and company name extracted successfully')
         except Exception as e:
             raise Exception(f'Error extracting role title and company name: {e}')
 
@@ -77,7 +80,7 @@ class OttaScraper:
         The name parameter is a lowercase string with spaces replaced by hyphens.
         If company name or role title is missing, prompts user for input.
         """
-        log("generating name parameter...")
+        logger.info("generating name parameter...")
 
         company_name = "undetermined"
         role_title = "undetermined"
@@ -116,7 +119,7 @@ class OttaScraper:
             name_param = str(company_name + "-" + role_title)
             name_param = re.sub('-{2,}', '-', name_param)
             self.job_description['name_param'] = name_param
-            log(f"successfully generated name parameter: {name_param}")
+            logger.info(f"successfully generated name parameter: {name_param}")
 
         except Exception as e:
             output = (
@@ -125,7 +128,7 @@ class OttaScraper:
                 f"role title: {role_title}\n" +
                 f"name_param: {self.job_description.get('name_param', 'not_set')}"
             )
-            log(output)
+            logger.info(output)
             raise Exception(output)
 
     # def _generate_name_param(self):
@@ -133,7 +136,7 @@ class OttaScraper:
 	# 	Generate a name parameter for the job description.
 	# 	The name parameter is a lowercase string with spaces replaced by hyphens.
 	# 	"""
-    #     log("generating name parameter...")
+    #     logger.info("generating name parameter...")
     #
     #     company_name = "undetermined"
     #     role_title = "undetermined"
@@ -151,7 +154,7 @@ class OttaScraper:
     #             name_param = str(company_name + "-" + role_title)
     #             name_param = re.sub('-{2,}', '-', name_param)
     #             self.job_description['name_param'] = name_param
-    #             log(f"successfully generated name parameter: {name_param}")
+    #             logger.info(f"successfully generated name parameter: {name_param}")
     #         else :
     #             raise Exception("role title or company name is undetermined")
     #     except Exception as e:
@@ -161,7 +164,7 @@ class OttaScraper:
     #             f"role title: {role_title}\n" +
     #             f"name_param: {self.job_description['name_param']}"
     #         )
-    #         log(output)
+    #         logger.info(output)
     #         raise Exception(output)
 
     def _extract_role_description(self):
@@ -181,7 +184,7 @@ class OttaScraper:
             role_description = pattern.sub(r'\1\n\2', role_description)
 
             self.job_description['role_description'] = role_description
-            log('role description extracted successfully')
+            logger.info('role description extracted successfully')
         except Exception as e:
             raise Exception(f'Error extracting role description: {e}')
 
@@ -211,7 +214,7 @@ class OttaScraper:
                         skills.append(skill)
 
                 self.job_description['key_skills'] = skills
-                log('key skills extracted successfully')
+                logger.info('key skills extracted successfully')
 
         except Exception as e:
             raise Exception(f'Error extracting key skills: {e}')
@@ -234,7 +237,7 @@ class OttaScraper:
                 company_sectors = [tag.text.strip() for tag in sector_elements]
 
                 self.job_description['company_sectors'] = company_sectors
-                log('company sectors extracted successfully')
+                logger.info('company sectors extracted successfully')
         except Exception as e:
             raise Exception(f'Error extracting company sectors: {e}')
 
@@ -247,14 +250,14 @@ class OttaScraper:
         Full pipeline function to scrape the job description
         :return: Dictionary with job description details
         """
-        log('initializing full scrape of otta job description...')
+        logger.info('initializing full scrape of otta job description...')
         self._fetch_webpage()
         self._extract_role_title_and_company_name()
         self._generate_name_param()
         self._extract_role_description()
         self._extract_key_skills()
         self._extract_company_sectors()
-        log('...full scrape of otta job description complete')
+        logger.info('...full scrape of otta job description complete')
 
 
     def write_jd(

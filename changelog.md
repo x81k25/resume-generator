@@ -4,6 +4,8 @@
 - imposed soft character limit on prompts
 - testing with anthropic-version: `claude-sonnet-4-20250514`
 - add bullet point prioritization to prompts, with the most important bullet point being placed at the top
+- add character_count to prompts in order to get all experiences into roughly 1 page of content
+- transitioned all LLM API calls in the `GeneratedResume` from free-text completion to Tool Use completion
 
 ## [1.3.4]
 - switch model API to `claude-3-7-sonnet-latest` current `claude-3-7-sonnet-20250219`
