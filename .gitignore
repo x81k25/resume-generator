@@ -10,20 +10,15 @@ venv
 __pycache__
 
 # data files/dirs that will be specific for each instance
-.bak
-data/assets/resume-header.png
-data/input/cover_letter_content/*
+data/
+
+# file included in order to maintain dir structure
+!data/assets/black-line.png
 !data/input/cover_letter_content/.gitkeep
-data/input/job_description/*
-!data/input/job_description/jd.json
-data/input/resume/resume_input.json
-data/output/*
+!data/input/job_descrption/jd.son
+!data/input/resume_input_sample.json
+!data/logs/.gitkeep
 !data/output/.gitkeep
 
-# ignore local notebook files
-notebooks/*
-
-# scripts that will be used for local testing
-test/test.py
-test/test-resume.pkl
-doc.txt
+# for loval devleopment only
+.dev/
